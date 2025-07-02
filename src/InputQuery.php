@@ -15,7 +15,6 @@ use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
-use ReflectionUnionType;
 
 use function assert;
 use function class_exists;
@@ -148,14 +147,18 @@ final class InputQuery implements InputQueryInterface
         }
     }
 
+    /** @return class-string|'' */
     private function getInterface(ReflectionParameter $param): string
     {
         $type = $param->getType();
-        if ($type instanceof ReflectionUnionType || $type->isBuiltin()) {
+        if ($type === null || ! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
             return '';
         }
 
-        return $type->getName();
+        $class =  $type->getName();
+        assert(class_exists($class));
+
+        return $class;
     }
 
     private function getQualifer(ReflectionParameter $param): string
@@ -183,10 +186,6 @@ final class InputQuery implements InputQueryInterface
     {
         if ($param->isDefaultValueAvailable()) {
             return $param->getDefaultValue();
-        }
-
-        if ($param->allowsNull()) {
-            return null;
         }
 
         // Required parameter without default value
