@@ -513,4 +513,16 @@ final class InputQueryTest extends TestCase
         // Third parameter: Named 'service.name'
         $this->assertSame('TestService', $args[2]);
     }
+
+    public function testUnboundDIParameterException(): void
+    {
+        // Create a method that attempts to inject an unbound service
+        $method = new ReflectionMethod(DITestController::class, 'withUnboundServiceWithoutDefault');
+        $query = [];
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Parameter "service" of type "Ray\InputQuery\Fake\UnresolvableService:" is not bound in the injector.');
+
+        $this->inputQuery->getArguments($method, $query);
+    }
 }
