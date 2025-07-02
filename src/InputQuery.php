@@ -72,7 +72,6 @@ final class InputQuery implements InputQueryInterface
         $constructor = $reflection->getConstructor();
 
         if (! $constructor) {
-            /** @var T */
             return $reflection->newInstance();
         }
 
