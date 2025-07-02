@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ray\InputQuery;
 
 use InvalidArgumentException;
+use Override;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
 use ReflectionClass;
@@ -14,6 +15,12 @@ use ReflectionParameter;
 
 use function assert;
 use function class_exists;
+use function is_bool;
+use function is_float;
+use function is_int;
+use function is_numeric;
+use function is_scalar;
+use function is_string;
 use function lcfirst;
 use function sprintf;
 use function str_replace;
@@ -23,7 +30,10 @@ use function strtolower;
 use function substr;
 use function ucwords;
 
-/** @template T of object */
+/**
+ * @template T of object
+ * @implements InputQueryInterface<T>
+ */
 final class InputQuery implements InputQueryInterface
 {
     public function __construct(
@@ -32,14 +42,14 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     *
-     * @return array<string, mixed>
+     * {@inheritDoc}
      */
+    #[Override]
     public function getArguments(ReflectionMethod $method, array $query): array
     {
         $args = [];
         foreach ($method->getParameters() as $param) {
+            /** @psalm-suppress MixedAssignment */
             $args[] = $this->resolveParameter($param, $query);
         }
 
@@ -52,13 +62,15 @@ final class InputQuery implements InputQueryInterface
      *
      * @return T
      */
+    #[Override]
     public function create(string $class, array $query): object
     {
         $reflection = new ReflectionClass($class);
         $constructor = $reflection->getConstructor();
 
         if (! $constructor) {
-            return new $class();
+            /** @var T */
+            return $reflection->newInstance();
         }
 
         $args = $this->getArguments($constructor, $query);
@@ -87,6 +99,7 @@ final class InputQuery implements InputQueryInterface
 
         if ($type->isBuiltin()) {
             // Scalar type with #[Input]
+            /** @psalm-suppress MixedAssignment $value */
             $value = $query[$paramName] ?? $this->getDefaultValue($param);
 
             return $this->convertScalar($value, $type);
@@ -104,6 +117,7 @@ final class InputQuery implements InputQueryInterface
         $class = $type->getName();
         assert(class_exists($class));
 
+        /** @var class-string<T> $class */
         return $this->create($class, $nestedQuery);
     }
 
@@ -122,7 +136,10 @@ final class InputQuery implements InputQueryInterface
         }
 
         // Object type without #[Input] - get from DI
-        return $this->injector->getInstance($type->getName());
+        $className = $type->getName();
+        assert(class_exists($className));
+
+        return $this->injector->getInstance($className);
     }
 
     private function getDefaultValue(ReflectionParameter $param): mixed
@@ -149,10 +166,10 @@ final class InputQuery implements InputQueryInterface
         }
 
         return match ($type->getName()) {
-            'string' => (string) $value,
-            'int' => (int) $value,
-            'float' => (float) $value,
-            'bool' => (bool) $value,
+            'string' => is_string($value) ? $value : (is_scalar($value) ? (string) $value : ''),
+            'int' => is_int($value) ? $value : (is_numeric($value) ? (int) $value : 0),
+            'float' => is_float($value) ? $value : (is_numeric($value) ? (float) $value : 0.0),
+            'bool' => is_bool($value) ? $value : (bool) $value,
             default => $value
         };
     }
@@ -160,13 +177,14 @@ final class InputQuery implements InputQueryInterface
     /**
      * @param array<string, mixed> $query
      *
-     * @return array<mixed>
+     * @return array<string, mixed>
      */
     private function extractNestedQuery(string $paramName, array $query): array
     {
         $prefix = $this->toCamelCase($paramName);
         $nestedQuery = [];
 
+        /** @psalm-suppress MixedAssignment */
         foreach ($query as $key => $value) {
             $normalizedKey = $this->toCamelCase($key);
 
@@ -174,6 +192,7 @@ final class InputQuery implements InputQueryInterface
                 $nestedKey = substr($normalizedKey, strlen($prefix));
                 $nestedKey = lcfirst($nestedKey);
                 if ($nestedKey !== '') {
+                    /** @psalm-suppress MixedAssignment */
                     $nestedQuery[$nestedKey] = $value;
                 }
             }
