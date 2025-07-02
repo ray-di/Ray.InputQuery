@@ -127,9 +127,9 @@ final class InputQuery implements InputQueryInterface
     private function resolveFromDI(ReflectionParameter $param): mixed
     {
         $interface = $this->getInterface($param);
-        $quailifier = $this->getQualifer($param);
+        $qualifier = $this->getQualifier($param);
         try {
-            return $this->injector->getInstance($interface, $quailifier);
+            return $this->injector->getInstance($interface, $qualifier);
         } catch (Unbound $e) {
             // If the type is not bound, we need to handle it
             // If it's a scalar type, return default value
@@ -142,7 +142,7 @@ final class InputQuery implements InputQueryInterface
                 'Parameter "%s" of type "%s:%s" is not bound in the injector.',
                 $param->getName(),
                 $interface,
-                $quailifier,
+                $qualifier,
             ), 0, $e);
         }
     }
@@ -161,7 +161,7 @@ final class InputQuery implements InputQueryInterface
         return $class;
     }
 
-    private function getQualifer(ReflectionParameter $param): string
+    private function getQualifier(ReflectionParameter $param): string
     {
         $maybeAttrs = $param->getAttributes();
         foreach ($maybeAttrs as $maybeAttr) {
@@ -172,8 +172,8 @@ final class InputQuery implements InputQueryInterface
             }
 
             $maybeQualifier = (new ReflectionClass($attr))->getAttributes(Qualifier::class);
-            $isQaulifier  = ! empty($maybeQualifier);
-            if ($isQaulifier) {
+            $isQualifier  = ! empty($maybeQualifier);
+            if ($isQualifier) {
                 // If the attribute is Qualifier, return its value
                 return $attr::class;
             }
