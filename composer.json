@@ -1,6 +1,6 @@
 {
     "name": "ray/input-query",
-    "description": "",
+    "description": "Type-safe input objects from HTTP queries",
     "license": "MIT",
     "authors": [
         {
