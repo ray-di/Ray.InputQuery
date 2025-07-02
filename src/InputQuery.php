@@ -6,12 +6,16 @@ namespace Ray\InputQuery;
 
 use InvalidArgumentException;
 use Override;
+use Ray\Di\Di\Named;
+use Ray\Di\Di\Qualifier;
+use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
+use ReflectionUnionType;
 
 use function assert;
 use function class_exists;
@@ -123,23 +127,56 @@ final class InputQuery implements InputQueryInterface
 
     private function resolveFromDI(ReflectionParameter $param): mixed
     {
+        $interface = $this->getInterface($param);
+        $quailifier = $this->getQualifer($param);
+        try {
+            return $this->injector->getInstance($interface, $quailifier);
+        } catch (Unbound $e) {
+            // If the type is not bound, we need to handle it
+            // If it's a scalar type, return default value
+            if ($param->isDefaultValueAvailable()) {
+                return $param->getDefaultValue();
+            }
+
+            // If it's an object type, throw an exception
+            throw new InvalidArgumentException(sprintf(
+                'Parameter "%s" of type "%s:%s" is not bound in the injector.',
+                $param->getName(),
+                $interface,
+                $quailifier,
+            ), 0, $e);
+        }
+    }
+
+    private function getInterface(ReflectionParameter $param): string
+    {
         $type = $param->getType();
-
-        if (! $type instanceof ReflectionNamedType) {
-            return $this->getDefaultValue($param);
+        if ($type instanceof ReflectionUnionType || $type->isBuiltin()) {
+            return '';
         }
 
-        if ($type->isBuiltin()) {
-            // Scalar type without #[Input] - should be from DI with #[Named]
-            // For now, return default value
-            return $this->getDefaultValue($param);
+        return $type->getName();
+    }
+
+    private function getQualifer(ReflectionParameter $param): string
+    {
+        $maybeAttrs = $param->getAttributes();
+        foreach ($maybeAttrs as $maybeAttr) {
+            $attr = $maybeAttr->newInstance();
+            if ($attr instanceof Named) {
+                // If the attribute is Named, return its value
+                return $attr->value;
+            }
+
+            $maybeQualifier = (new ReflectionClass($attr))->getAttributes(Qualifier::class);
+            $isQaulifier  = ! empty($maybeQualifier);
+            if ($isQaulifier) {
+                // If the attribute is Qualifier, return its value
+                return $attr::class;
+            }
         }
 
-        // Object type without #[Input] - get from DI
-        $className = $type->getName();
-        assert(class_exists($className));
-
-        return $this->injector->getInstance($className);
+        return '';
     }
 
     private function getDefaultValue(ReflectionParameter $param): mixed

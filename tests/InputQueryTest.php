@@ -9,13 +9,17 @@ use PHPUnit\Framework\TestCase;
 use Ray\Di\AbstractModule;
 use Ray\Di\Injector;
 use Ray\InputQuery\Fake\AuthorInput;
+use Ray\InputQuery\Fake\DatabaseService;
 use Ray\InputQuery\Fake\DefaultValuesInput;
+use Ray\InputQuery\Fake\DITestController;
 use Ray\InputQuery\Fake\MixedInput;
 use Ray\InputQuery\Fake\NoConstructorInput;
 use Ray\InputQuery\Fake\NonInputParameterController;
 use Ray\InputQuery\Fake\NonNamedTypeController;
 use Ray\InputQuery\Fake\NullableInput;
+use Ray\InputQuery\Fake\Primary;
 use Ray\InputQuery\Fake\ScalarInput;
+use Ray\InputQuery\Fake\Secondary;
 use Ray\InputQuery\Fake\TestService;
 use Ray\InputQuery\Fake\TodoController;
 use Ray\InputQuery\Fake\TodoInput;
@@ -35,6 +39,18 @@ final class InputQueryTest extends TestCase
         $injector = new Injector(new class extends AbstractModule {
             protected function configure(): void
             {
+                $this->bind(TestService::class)->toInstance(new TestService('injected'));
+
+                // Named bindings
+                $this->bind()->annotatedWith('database.host')->toInstance('localhost');
+                $this->bind()->annotatedWith('database.port')->toInstance(3306);
+                $this->bind()->annotatedWith('service.name')->toInstance('TestService');
+
+                // Custom qualifier bindings
+                $this->bind(DatabaseService::class)->annotatedWith(Primary::class)
+                     ->toInstance(new DatabaseService('primary://db1'));
+                $this->bind(DatabaseService::class)->annotatedWith(Secondary::class)
+                     ->toInstance(new DatabaseService('secondary://db2'));
                 $this->bind(TestService::class)->toInstance(new TestService('injected'));
             }
         });
@@ -417,5 +433,84 @@ final class InputQueryTest extends TestCase
         // TestService without #[Input] gets injected via DI
         $this->assertInstanceOf(TestService::class, $args[1]);
         $this->assertSame('injected', $args[1]->getValue());
+    }
+
+    public function testNamedDIParameters(): void
+    {
+        $method = new ReflectionMethod(DITestController::class, 'withNamed');
+        $query = [
+            'name' => 'TestUser',
+            'email' => 'test@example.com',
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(3, $args);
+
+        // First parameter: UserInput from query
+        $this->assertInstanceOf(UserInput::class, $args[0]);
+        /** @var UserInput $userInput */
+        $userInput = $args[0];
+        $this->assertSame('TestUser', $userInput->name);
+        $this->assertSame('test@example.com', $userInput->email);
+
+        // Second parameter: Named 'database.host'
+        $this->assertSame('localhost', $args[1]);
+
+        // Third parameter: Named 'database.port'
+        $this->assertSame(3306, $args[2]);
+    }
+
+    public function testCustomQualifierDIParameters(): void
+    {
+        $method = new ReflectionMethod(DITestController::class, 'withCustomQualifier');
+        $query = [
+            'name' => 'QualifierUser',
+            'email' => 'qualifier@example.com',
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(3, $args);
+
+        // First parameter: UserInput from query
+        $this->assertInstanceOf(UserInput::class, $args[0]);
+        /** @var UserInput $userInput */
+        $userInput = $args[0];
+        $this->assertSame('QualifierUser', $userInput->name);
+
+        // Second parameter: DatabaseService with CustomQualifier('primary')
+        $this->assertInstanceOf(DatabaseService::class, $args[1]);
+        /** @var DatabaseService $primaryDb */
+        $primaryDb = $args[1];
+        $this->assertSame('primary://db1', $primaryDb->getConnectionString());
+
+        // Third parameter: DatabaseService with CustomQualifier('secondary')
+        $this->assertInstanceOf(DatabaseService::class, $args[2]);
+        /** @var DatabaseService $secondaryDb */
+        $secondaryDb = $args[2];
+        $this->assertSame('secondary://db2', $secondaryDb->getConnectionString());
+    }
+
+    public function testMixedDIParameters(): void
+    {
+        $method = new ReflectionMethod(DITestController::class, 'withMixedDI');
+        $query = ['message' => 'Hello World'];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(3, $args);
+
+        // First parameter: string from query with #[Input]
+        $this->assertSame('Hello World', $args[0]);
+
+        // Second parameter: TestService without qualifier (default DI)
+        $this->assertInstanceOf(TestService::class, $args[1]);
+        /** @var TestService $service */
+        $service = $args[1];
+        $this->assertSame('injected', $service->getValue());
+
+        // Third parameter: Named 'service.name'
+        $this->assertSame('TestService', $args[2]);
     }
 }
