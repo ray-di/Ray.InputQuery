@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
+use ArrayObject;
 use InvalidArgumentException;
 use Override;
 use Ray\Di\Di\Named;
@@ -11,19 +12,24 @@ use Ray\Di\Di\Qualifier;
 use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
 
+use function array_key_exists;
 use function assert;
 use function class_exists;
+use function gettype;
+use function is_array;
 use function is_bool;
 use function is_float;
 use function is_int;
 use function is_numeric;
 use function is_scalar;
 use function is_string;
+use function is_subclass_of;
 use function lcfirst;
 use function sprintf;
 use function str_replace;
@@ -91,7 +97,15 @@ final class InputQuery implements InputQueryInterface
             return $this->resolveFromDI($param);
         }
 
-        // Has #[Input] attribute - get from query
+        return $this->resolveInputParameter($param, $query, $inputAttributes);
+    }
+
+    /**
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
+    {
         $type = $param->getType();
         $paramName = $param->getName();
 
@@ -100,27 +114,99 @@ final class InputQuery implements InputQueryInterface
         }
 
         if ($type->isBuiltin()) {
-            // Scalar type with #[Input]
-            /** @psalm-suppress MixedAssignment $value */
-            $value = $query[$paramName] ?? $this->getDefaultValue($param);
-
-            return $this->convertScalar($value, $type);
+            return $this->resolveBuiltinType($param, $query, $inputAttributes, $type);
         }
 
-        // Object type with #[Input] - create nested
+        return $this->resolveObjectType($param, $query, $inputAttributes, $type);
+    }
+
+    /**
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
+    {
+        $paramName = $param->getName();
+
+        if ($type->getName() === 'array') {
+            $inputAttribute = $inputAttributes[0]->newInstance();
+            if ($inputAttribute->item !== null) {
+                assert(class_exists($inputAttribute->item));
+                $itemClass = $inputAttribute->item;
+
+                /** @var class-string<T> $itemClass */
+                return $this->createArrayOfInputs($paramName, $query, $itemClass);
+            }
+        }
+
+        // Scalar type with #[Input]
+        /** @psalm-suppress MixedAssignment $value */
+        $value = $query[$paramName] ?? $this->getDefaultValue($param);
+
+        return $this->convertScalar($value, $type);
+    }
+
+    /**
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
+    {
+        $paramName = $param->getName();
+        $className = $type->getName();
+
+        // Check for ArrayObject types with item specification
+        $arrayObjectResult = $this->resolveArrayObjectType($paramName, $query, $inputAttributes, $className);
+        if ($arrayObjectResult !== null) {
+            return $arrayObjectResult;
+        }
+
+        // Regular object type with #[Input] - create nested
         $nestedQuery = $this->extractNestedQuery($paramName, $query);
 
         // If no nested keys found, try using the entire query
-        // This handles cases like controller method parameters
         if (empty($nestedQuery)) {
             $nestedQuery = $query;
         }
 
-        $class = $type->getName();
-        assert(class_exists($class));
+        assert(class_exists($className));
 
-        /** @var class-string<T> $class */
-        return $this->create($class, $nestedQuery);
+        /** @var class-string<T> $className */
+        return $this->create($className, $nestedQuery);
+    }
+
+    /**
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
+    {
+        $isArrayObjectSubclass = class_exists($className) && is_subclass_of($className, ArrayObject::class);
+        $isArrayObject = $className === ArrayObject::class;
+
+        if (! $isArrayObjectSubclass && ! $isArrayObject) {
+            return null;
+        }
+
+        $inputAttribute = $inputAttributes[0]->newInstance();
+        if ($inputAttribute->item === null) {
+            return null;
+        }
+
+        assert(class_exists($inputAttribute->item));
+        /** @var class-string<T> $itemClass */
+        $itemClass = $inputAttribute->item;
+        $array = $this->createArrayOfInputs($paramName, $query, $itemClass);
+
+        if ($isArrayObject) {
+            return new ArrayObject($array);
+        }
+
+        assert(class_exists($className));
+        /** @var class-string $className */
+        $reflectionClass = new ReflectionClass($className);
+
+        return $reflectionClass->newInstance($array);
     }
 
     private function resolveFromDI(ReflectionParameter $param): mixed
@@ -244,5 +330,46 @@ final class InputQuery implements InputQueryInterface
         $string = str_replace(' ', '', $string);
 
         return lcfirst($string);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param class-string<T>      $itemClass
+     *
+     * @return array<array-key, T>
+     */
+    private function createArrayOfInputs(string $paramName, array $query, string $itemClass): array
+    {
+        if (! array_key_exists($paramName, $query)) {
+            return [];
+        }
+
+        /** @var mixed $arrayData */
+        $arrayData = $query[$paramName];
+
+        if (! is_array($arrayData)) {
+            return [];
+        }
+
+        $result = [];
+        /** @var mixed $itemData */
+        foreach ($arrayData as $key => $itemData) {
+            if (! is_array($itemData)) {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'Expected array for item at key "%s", got %s.',
+                        $key,
+                        gettype($itemData),
+                    ),
+                );
+            }
+
+            // Query parameters from HTTP requests have string keys
+            /** @psalm-var array<string, mixed> $itemData */
+            /** @phpstan-var array<string, mixed> $itemData */
+            $result[$key] = $this->create($itemClass, $itemData);
+        }
+
+        return $result;
     }
 }

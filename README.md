@@ -120,6 +120,74 @@ echo $todo->title;           // Buy milk
 echo $todo->assignee->name;  // John
 ```
 
+### Array Support
+
+Ray.InputQuery supports arrays and ArrayObject collections with the `item` parameter:
+
+```php
+use Ray\InputQuery\Attribute\Input;
+
+final class UserInput
+{
+    public function __construct(
+        #[Input] public readonly string $id,
+        #[Input] public readonly string $name
+    ) {}
+}
+
+final class UserListController
+{
+    public function updateUsers(
+        #[Input(item: UserInput::class)] array $users  // Array of UserInput objects
+    ) {
+        foreach ($users as $user) {
+            echo $user->name; // Each element is a UserInput instance
+        }
+    }
+    
+    public function processUsers(
+        #[Input(item: UserInput::class)] ArrayObject $users  // ArrayObject collection
+    ) {
+        // $users is an ArrayObject containing UserInput instances
+    }
+}
+```
+
+Query data format for arrays:
+
+```php
+$data = [
+    'users' => [
+        ['id' => '1', 'name' => 'John'],
+        ['id' => '2', 'name' => 'Jane'],
+        ['id' => '3', 'name' => 'Bob']
+    ]
+];
+
+$args = $inputQuery->getArguments($method, $data);
+// $args[0] will be an array of UserInput objects
+```
+
+**ArrayObject Inheritance Support:**
+
+Custom ArrayObject subclasses are also supported:
+
+```php
+final class UserCollection extends ArrayObject
+{
+    public function getFirst(): ?UserInput
+    {
+        return $this[0] ?? null;
+    }
+}
+
+public function handleUsers(
+    #[Input(item: UserInput::class)] UserCollection $users
+) {
+    $firstUser = $users->getFirst(); // Custom method available
+}
+```
+
 ### Mixed with Dependency Injection
 
 Parameters without the `#[Input]` attribute are resolved via dependency injection:
