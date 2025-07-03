@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ray\InputQuery;
 
 use ArrayObject;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Ray\Di\Injector;
 use Ray\InputQuery\Attribute\Input;
@@ -152,11 +153,8 @@ final class ArrayInputTest extends TestCase
     {
         $query = [
             'users' => [
-                'string-value',
-                123,
+                'string-value', // Non-array element at index 0
                 ['id' => '1', 'name' => 'valid'],
-                null,
-                true,
             ],
         ];
 
@@ -170,13 +168,11 @@ final class ArrayInputTest extends TestCase
         };
 
         $method = new ReflectionMethod($controller, 'listUsers');
-        $args = $this->inputQuery->getArguments($method, $query);
 
-        $this->assertIsArray($args[0]);
-        $this->assertCount(1, $args[0]); // Only the valid array element
-        $this->assertInstanceOf(UserInputWithAttribute::class, $args[0][2]);
-        $this->assertSame('1', $args[0][2]->id);
-        $this->assertSame('valid', $args[0][2]->name);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Expected array for item at key "0", got string.');
+
+        $this->inputQuery->getArguments($method, $query);
     }
 
     public function testCustomArrayObjectOfInputObjects(): void
@@ -215,5 +211,29 @@ final class ArrayInputTest extends TestCase
         $firstUser = $args[0]->getFirst();
         $this->assertInstanceOf(UserInputWithAttribute::class, $firstUser);
         $this->assertSame('5', $firstUser->id);
+    }
+
+    public function testArrayObjectWithoutItemAttribute(): void
+    {
+        $query = [
+            'users' => [
+                ['id' => '1', 'name' => 'test'],
+            ],
+        ];
+
+        $controller = new class {
+            public function listUsers(
+                #[Input] // No item parameter specified
+                ArrayObject $users,
+            ): ArrayObject {
+                return $users;
+            }
+        };
+
+        $method = new ReflectionMethod($controller, 'listUsers');
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        // Should create a regular ArrayObject with the nested query data
+        $this->assertInstanceOf(ArrayObject::class, $args[0]);
     }
 }

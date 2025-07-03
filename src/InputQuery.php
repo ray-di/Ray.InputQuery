@@ -21,6 +21,7 @@ use ReflectionParameter;
 use function array_key_exists;
 use function assert;
 use function class_exists;
+use function gettype;
 use function is_array;
 use function is_bool;
 use function is_float;
@@ -335,7 +336,7 @@ final class InputQuery implements InputQueryInterface
      * @param array<string, mixed> $query
      * @param class-string<T>      $itemClass
      *
-     * @return array<mixed>
+     * @return array<array-key, T>
      */
     private function createArrayOfInputs(string $paramName, array $query, string $itemClass): array
     {
@@ -353,12 +354,20 @@ final class InputQuery implements InputQueryInterface
         $result = [];
         /** @var mixed $itemData */
         foreach ($arrayData as $key => $itemData) {
-            if (is_array($itemData)) {
-                // Query parameters from HTTP requests have string keys
-                /** @psalm-var array<string, mixed> $itemData */
-                /** @phpstan-var array<string, mixed> $itemData */
-                $result[$key] = $this->create($itemClass, $itemData);
+            if (! is_array($itemData)) {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'Expected array for item at key "%s", got %s.',
+                        $key,
+                        gettype($itemData),
+                    ),
+                );
             }
+
+            // Query parameters from HTTP requests have string keys
+            /** @psalm-var array<string, mixed> $itemData */
+            /** @phpstan-var array<string, mixed> $itemData */
+            $result[$key] = $this->create($itemClass, $itemData);
         }
 
         return $result;
