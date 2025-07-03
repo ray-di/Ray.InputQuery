@@ -416,6 +416,7 @@ final class InputQuery implements InputQueryInterface
 
         // Try to create from $_FILES
         if (isset($_FILES[$paramName])) {
+            /** @var array<string, mixed> $fileData */
             $fileData = $_FILES[$paramName];
 
             // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
@@ -455,11 +456,8 @@ final class InputQuery implements InputQueryInterface
             return [];
         }
 
+        /** @var array<string, mixed> $arrayData */
         $arrayData = $_FILES[$paramName];
-
-        if (! is_array($arrayData)) {
-            return [];
-        }
 
         // Check if this is HTML multiple file upload format
         if (isset($arrayData['name']) && is_array($arrayData['name'])) {
@@ -469,16 +467,8 @@ final class InputQuery implements InputQueryInterface
         // Handle regular array format (each element is a complete file array)
         $result = [];
 
+        /** @var array<string, mixed> $fileData */
         foreach ($arrayData as $key => $fileData) {
-            if (! is_array($fileData)) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        'Expected array for file upload at key "%s", got %s.',
-                        $key,
-                        gettype($fileData),
-                    ),
-                );
-            }
 
             // Skip files that weren't uploaded
             if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
@@ -521,6 +511,7 @@ final class InputQuery implements InputQueryInterface
                 continue;
             }
 
+            /** @var array<string, mixed> $fileData */
             $result[$i] = FileUpload::create($fileData);
         }
 
@@ -535,7 +526,8 @@ final class InputQuery implements InputQueryInterface
     {
         // Check if any of the union types is a FileUpload type
         foreach ($type->getTypes() as $unionType) {
-            if ($unionType instanceof ReflectionNamedType && $this->isFileUploadType($unionType->getName())) {
+            /** @var ReflectionNamedType $unionType */
+            if ($this->isFileUploadType($unionType->getName())) {
                 // This is a FileUpload union, handle as file upload
                 return $this->resolveFileUpload($param, $query);
             }
