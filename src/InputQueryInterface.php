@@ -18,6 +18,7 @@ interface InputQueryInterface
      */
     public function getArguments(ReflectionMethod $method, array $query): array;
 
+
     /**
      * Create object from query data
      *
@@ -27,4 +28,5 @@ interface InputQueryInterface
      * @return T
      */
     public function create(string $class, array $query): object;
+
 }

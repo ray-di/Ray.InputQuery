@@ -17,6 +17,7 @@ use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
+use ReflectionUnionType;
 
 use function array_key_exists;
 use function assert;
@@ -65,6 +66,7 @@ final class InputQuery implements InputQueryInterface
         return $args;
     }
 
+
     /**
      * @param class-string<T>      $class
      * @param array<string, mixed> $query
@@ -85,6 +87,7 @@ final class InputQuery implements InputQueryInterface
 
         return $reflection->newInstanceArgs($args);
     }
+
 
     /** @param array<string, mixed> $query */
     private function resolveParameter(ReflectionParameter $param, array $query): mixed
@@ -108,6 +111,12 @@ final class InputQuery implements InputQueryInterface
     {
         $type = $param->getType();
         $paramName = $param->getName();
+
+
+        // Handle union types (e.g., FileUpload|ErrorFileUpload)
+        if ($type instanceof ReflectionUnionType) {
+            return $this->resolveUnionType($param, $query, $inputAttributes, $type);
+        }
 
         if (! $type instanceof ReflectionNamedType) {
             return $query[$paramName] ?? $this->getDefaultValue($param);
@@ -134,6 +143,11 @@ final class InputQuery implements InputQueryInterface
                 assert(class_exists($inputAttribute->item));
                 $itemClass = $inputAttribute->item;
 
+                // Check if array items are FileUpload types
+                if ($this->isFileUploadType($itemClass)) {
+                    return $this->createArrayOfFileUploads($paramName, $query);
+                }
+
                 /** @var class-string<T> $itemClass */
                 return $this->createArrayOfInputs($paramName, $query, $itemClass);
             }
@@ -154,6 +168,11 @@ final class InputQuery implements InputQueryInterface
     {
         $paramName = $param->getName();
         $className = $type->getName();
+
+        // Check for FileUpload types
+        if ($this->isFileUploadType($className)) {
+            return $this->resolveFileUpload($param, $query);
+        }
 
         // Check for ArrayObject types with item specification
         $arrayObjectResult = $this->resolveArrayObjectType($paramName, $query, $inputAttributes, $className);
@@ -371,5 +390,156 @@ final class InputQuery implements InputQueryInterface
         }
 
         return $result;
+    }
+
+    private function isFileUploadType(string $className): bool
+    {
+        if (! class_exists('Koriym\FileUpload\FileUpload')) {
+            return false;
+        }
+        
+        return $className === 'Koriym\FileUpload\FileUpload' 
+            || $className === 'Koriym\FileUpload\ErrorFileUpload'
+            || is_subclass_of($className, \Koriym\FileUpload\FileUpload::class);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     */
+    private function resolveFileUpload(ReflectionParameter $param, array $query): mixed
+    {
+        $paramName = $param->getName();
+        
+        // Check if FileUpload is provided in query (for testing)
+        if (array_key_exists($paramName, $query)) {
+            return $query[$paramName];
+        }
+        
+        // Try to create from $_FILES
+        if (isset($_FILES[$paramName])) {
+            $fileData = $_FILES[$paramName];
+            
+            // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
+            if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
+                if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
+                    return $param->getDefaultValue();
+                }
+                throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
+            }
+            
+            return \Koriym\FileUpload\FileUpload::create($fileData);
+        }
+        
+        // No file found
+        if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
+            return $param->getDefaultValue();
+        }
+        
+        throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @return array<array-key, mixed>
+     */
+    private function createArrayOfFileUploads(string $paramName, array $query): array
+    {
+        // Check if FileUpload array is provided in query (for testing)
+        if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
+            return $query[$paramName];
+        }
+        
+        // Try to create from $_FILES
+        if (!isset($_FILES[$paramName])) {
+            return [];
+        }
+
+        $arrayData = $_FILES[$paramName];
+        
+        if (!is_array($arrayData)) {
+            return [];
+        }
+
+        // Check if this is HTML multiple file upload format
+        if (isset($arrayData['name']) && is_array($arrayData['name'])) {
+            return $this->convertMultipleFileFormat($arrayData);
+        }
+
+        // Handle regular array format (each element is a complete file array)
+        $result = [];
+        
+        foreach ($arrayData as $key => $fileData) {
+            if (!is_array($fileData)) {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'Expected array for file upload at key "%s", got %s.',
+                        $key,
+                        gettype($fileData),
+                    ),
+                );
+            }
+
+            // Skip files that weren't uploaded
+            if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+
+            $result[$key] = \Koriym\FileUpload\FileUpload::create($fileData);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert HTML multiple file upload format to individual file arrays
+     * @param array<string, mixed> $multipleFileData
+     * @return array<array-key, mixed>
+     */
+    private function convertMultipleFileFormat(array $multipleFileData): array
+    {
+        if (!isset($multipleFileData['name']) || !is_array($multipleFileData['name'])) {
+            return [];
+        }
+        
+        $result = [];
+        $fileCount = count($multipleFileData['name']);
+        
+        for ($i = 0; $i < $fileCount; $i++) {
+            $fileData = [
+                'name' => $multipleFileData['name'][$i] ?? '',
+                'type' => isset($multipleFileData['type']) && is_array($multipleFileData['type']) ? ($multipleFileData['type'][$i] ?? '') : '',
+                'size' => isset($multipleFileData['size']) && is_array($multipleFileData['size']) ? ($multipleFileData['size'][$i] ?? 0) : 0,
+                'tmp_name' => isset($multipleFileData['tmp_name']) && is_array($multipleFileData['tmp_name']) ? ($multipleFileData['tmp_name'][$i] ?? '') : '',
+                'error' => isset($multipleFileData['error']) && is_array($multipleFileData['error']) ? ($multipleFileData['error'][$i] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE,
+            ];
+            
+            // Skip files that weren't uploaded
+            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            
+            $result[$i] = \Koriym\FileUpload\FileUpload::create($fileData);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveUnionType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionUnionType $type): mixed
+    {
+        // Check if any of the union types is a FileUpload type
+        foreach ($type->getTypes() as $unionType) {
+            if ($unionType instanceof ReflectionNamedType && $this->isFileUploadType($unionType->getName())) {
+                // This is a FileUpload union, handle as file upload
+                return $this->resolveFileUpload($param, $query);
+            }
+        }
+
+        // Not a FileUpload union type, handle as regular parameter
+        $paramName = $param->getName();
+        return $query[$paramName] ?? $this->getDefaultValue($param);
     }
 }
