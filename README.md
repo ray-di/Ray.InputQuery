@@ -153,19 +153,75 @@ final class UserListController
 }
 ```
 
-Query data format for arrays:
+**Query data format for arrays:**
+
+Arrays should be submitted as indexed arrays. Here's how to structure HTML forms and the resulting data:
+
+```html
+<!-- HTML Form -->
+<form method="post">
+    <input name="users[0][id]" value="1">
+    <input name="users[0][name]" value="Jingu">
+    
+    <input name="users[1][id]" value="2">
+    <input name="users[1][name]" value="Horikawa">
+</form>
+```
+
+This will be received as:
 
 ```php
 $data = [
     'users' => [
-        ['id' => '1', 'name' => 'John'],
-        ['id' => '2', 'name' => 'Jane'],
-        ['id' => '3', 'name' => 'Bob']
+        ['id' => '1', 'name' => 'Jingu'],
+        ['id' => '2', 'name' => 'Horikawa']
     ]
 ];
 
 $args = $inputQuery->getArguments($method, $data);
 // $args[0] will be an array of UserInput objects
+```
+
+**Simple array values (e.g., checkboxes):**
+
+For simple arrays like checkboxes or multi-select:
+
+```html
+<!-- Checkbox group -->
+<input name="hobbies[]" type="checkbox" value="music">
+<input name="hobbies[]" type="checkbox" value="sports">
+<input name="hobbies[]" type="checkbox" value="reading">
+
+<!-- Multi-select -->
+<select name="categories[]" multiple>
+    <option value="tech">Technology</option>
+    <option value="business">Business</option>
+    <option value="lifestyle">Lifestyle</option>
+</select>
+```
+
+This will be received as:
+
+```php
+$data = [
+    'hobbies' => ['music', 'sports'],      // Only checked values
+    'categories' => ['tech', 'lifestyle']   // Only selected values
+];
+
+// In your controller
+public function updatePreferences(
+    #[Input] array $hobbies,      // Simple string array
+    #[Input] array $categories    // Simple string array
+) {
+    // Direct array of strings, no object conversion needed
+}
+```
+
+**Note:** For non-array parameters, use flat naming without brackets:
+```html
+<!-- Single object properties -->
+<input name="customerName" value="Jingu">
+<input name="customerEmail" value="jingu@example.com">
 ```
 
 **ArrayObject Inheritance Support:**
@@ -213,40 +269,6 @@ All query keys are normalized to camelCase:
 - `user_name` → `userName`
 - `user-name` → `userName`
 - `UserName` → `userName`
-
-### Input Format Requirements
-
-Ray.InputQuery expects **flat key-value pairs** as input. Nested array structures are not supported:
-
-```php
-// ✅ Correct - Flat structure
-$data = [
-    'customerName' => 'John Doe',
-    'customerEmail' => 'john@example.com',
-    'shippingCity' => 'Tokyo'
-];
-
-// ❌ Wrong - Nested arrays (e.g., from customer[name] form fields)
-$data = [
-    'customer' => [
-        'name' => 'John Doe',
-        'email' => 'john@example.com'
-    ]
-];
-```
-
-**Why this restriction?** When nested objects are flattened for database operations, all property names must be globally unique to avoid conflicts. This design ensures predictable parameter binding and prevents naming collisions.
-For HTML forms, use flat naming:
-
-```html
-<!-- ✅ Correct -->
-<input name="customerName">
-<input name="customerEmail">
-
-<!-- ❌ Avoid -->
-<input name="customer[name]">
-<input name="customer[email]">
-```
 
 ## Integration
 
