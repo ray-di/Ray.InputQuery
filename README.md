@@ -21,13 +21,6 @@ $assigneeId = $data['assigneeId'] ?? '';
 $assigneeName = $data['assigneeName'] ?? '';
 $assigneeEmail = $data['assigneeEmail'] ?? '';
 
-// Manual validation and object creation
-$assignee = new UserInput($assigneeId, $assigneeName, $assigneeEmail);
-$todo = new TodoInput($title, $assignee);
-
-// Missing DI integration for services
-$logger = $container->get(LoggerInterface::class);
-```
 
 **Ray.InputQuery Solution:**
 ```php
