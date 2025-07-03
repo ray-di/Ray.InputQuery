@@ -4,7 +4,7 @@ This directory contains prompts for automatic generation of Ray.InputQuery Input
 
 ## Usage
 
-### [input-class-generator.md](input-class-generator.mdd)
+### [input-class-generator.md](input-class-generator.md)
 
 - Use this prompt when asking AI to automatically generate Input classes or perform refactoring.
 - Helpful when converting existing flat parameter lists into structured Input objects.
