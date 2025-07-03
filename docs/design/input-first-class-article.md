@@ -19,15 +19,6 @@ public function createArticle(Request $request)
     $authorEmail = $request->input('author_email');
     $tags = $request->input('tags', []);
     
-    // Manual validation
-    if (empty($title)) {
-        throw new ValidationException('Title is required');
-    }
-    
-    if (!filter_var($authorEmail, FILTER_VALIDATE_EMAIL)) {
-        throw new ValidationException('Invalid email');
-    }
-    
     // Manual object construction
     $author = new Author($authorName, $authorEmail);
     $article = new Article($title, $content, $author);
@@ -44,7 +35,6 @@ What's wrong with this code? Everything:
 
 - **No type safety** until deep inside the method
 - **Structure is hidden** in implementation details
-- **Validation logic is scattered**
 - **The relationship between form fields is implicit**
 
 ## Enter Ray.InputQuery: Input as First-Class Citizen
@@ -159,7 +149,7 @@ The `ArticleInput` class structure directly reflects this form structure. No men
 
 ### 3. Input-Specific Logic
 
-Input classes can contain logic specific to input processing:
+Input classes can express structure specific to input processing:
 
 ```php
 final class PasswordChangeInput
@@ -168,19 +158,11 @@ final class PasswordChangeInput
         #[Input] public readonly string $currentPassword,
         #[Input] public readonly string $newPassword,
         #[Input] public readonly string $confirmPassword
-    ) {
-        if ($newPassword !== $confirmPassword) {
-            throw new PasswordMismatchException();
-        }
-        
-        if (strlen($newPassword) < 8) {
-            throw new WeakPasswordException();
-        }
-    }
+    ) {}
 }
 ```
 
-This validation logic belongs to the input, not to the domain entity or some separate validator class.
+This structure belongs to the input domain, not to the domain entity or separate classes.
 
 ## Real-World Example: E-commerce Checkout
 
@@ -256,9 +238,8 @@ interface ArticleInput {
 This isn't just about a new way to handle form data. It's about recognizing that **input is a fundamental concern** of web applications that deserves first-class treatment.
 
 Traditional thinking:
-- "How do I validate this data?"
 - "How do I transform this array into objects?"
-- "Where should I put this validation logic?"
+- "What is the structure of this input?"
 
 Input-first thinking:
 - "What is the structure of this input?"

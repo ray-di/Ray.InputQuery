@@ -93,11 +93,7 @@ final class PasswordInput
     public function __construct(
         #[Input] public readonly string $password,
         #[Input] public readonly string $passwordConfirm
-    ) {
-        if ($this->password !== $this->passwordConfirm) {
-            throw new \InvalidArgumentException('Passwords do not match');
-        }
-    }
+    ) {}
 }
 ```
 
@@ -433,7 +429,7 @@ class ReservationController
  * - guest* → ゲスト情報
  * - checkIn/Out, adults, children → 予約詳細
  * - room* → 部屋選択
- * - pickup* → 送迎サービス（条件付き）
+ * - pickup* → 送迎サービス（条件付��）
  * - payment*, card* → 支払い情報
  * - newsletter, promoCode → 追加オプション
  */

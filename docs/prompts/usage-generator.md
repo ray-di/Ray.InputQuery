@@ -145,13 +145,8 @@ class Api extends ResourceObject
 {
     public function onPost(string $id, UpdateInput $input): static
     {
-        try {
-            $result = $this->service->update($id, $input);
-            $this->body = ['status' => 'success', 'data' => $result];
-        } catch (ValidationException $e) {
-            $this->code = 400;
-            $this->body = ['status' => 'error', 'errors' => $e->getErrors()];
-        }
+        $result = $this->service->update($id, $input);
+        $this->body = ['status' => 'success', 'data' => $result];
         
         return $this;
     }
@@ -228,9 +223,8 @@ $order = new OrderInput($step1, $step2, $paymentInput);
 
 1. **Show complete, runnable examples** - Include all necessary imports and setup
 2. **Add helpful comments** - Explain what Ray.InputQuery is doing automatically
-3. **Include error handling** - Show how to handle validation and exceptions
-4. **Demonstrate the value** - Show before/after comparisons when helpful
-5. **Real-world patterns** - Use realistic scenarios, not just "foo/bar" examples
+3. **Demonstrate the value** - Show before/after comparisons when helpful
+4. **Real-world patterns** - Use realistic scenarios, not just "foo/bar" examples
 
 ## Output Format
 

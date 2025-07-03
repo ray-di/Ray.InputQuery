@@ -65,11 +65,7 @@ final class PasswordInput {
     public function __construct(
         #[Input] public readonly string $password,
         #[Input] public readonly string $passwordConfirm  // Only needed during input
-    ) {
-        if ($password !== $passwordConfirm) {
-            throw new PasswordMismatchException();
-        }
-    }
+    ) {}
 }
 ```
 `passwordConfirm` is unnecessary in entities but essential during input. This distinction is naturally expressed.
