@@ -11,5 +11,6 @@ final class UserInput
     public function __construct(
         #[Input] public readonly string $name,
         #[Input] public readonly string $email
-    ) {}
+    ) {
+    }
 }

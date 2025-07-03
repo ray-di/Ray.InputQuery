@@ -3,7 +3,8 @@
     "allow": [
       "Bash(composer test:*)",
       "Bash(composer install:*)",
-      "Bash(composer:*)"
+      "Bash(composer:*)",
+      "Bash(./vendor/bin/phpunit:*)"
     ],
     "deny": []
   }

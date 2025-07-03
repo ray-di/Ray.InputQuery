@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
+use ArrayObject;
 use InvalidArgumentException;
 use Override;
 use Ray\Di\Di\Named;
@@ -18,6 +19,7 @@ use ReflectionParameter;
 
 use function assert;
 use function class_exists;
+use function is_array;
 use function is_bool;
 use function is_float;
 use function is_int;
@@ -100,11 +102,30 @@ final class InputQuery implements InputQueryInterface
         }
 
         if ($type->isBuiltin()) {
+            // Check if it's an array type with item specification
+            if ($type->getName() === 'array') {
+                $inputAttribute = $inputAttributes[0]->newInstance();
+                if ($inputAttribute->item !== null) {
+                    return $this->createArrayOfInputs($paramName, $query, $inputAttribute->item);
+                }
+            }
+
             // Scalar type with #[Input]
             /** @psalm-suppress MixedAssignment $value */
+
             $value = $query[$paramName] ?? $this->getDefaultValue($param);
 
             return $this->convertScalar($value, $type);
+        }
+
+        // Check if it's ArrayObject with item specification
+        if ($type->getName() === 'ArrayObject') {
+            $inputAttribute = $inputAttributes[0]->newInstance();
+            if ($inputAttribute->item !== null) {
+                $array = $this->createArrayOfInputs($paramName, $query, $inputAttribute->item);
+
+                return new ArrayObject($array);
+            }
         }
 
         // Object type with #[Input] - create nested
@@ -244,5 +265,29 @@ final class InputQuery implements InputQueryInterface
         $string = str_replace(' ', '', $string);
 
         return lcfirst($string);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param class-string         $itemClass
+     *
+     * @return array<mixed>
+     */
+    private function createArrayOfInputs(string $paramName, array $query, string $itemClass): array
+    {
+        $arrayData = $query[$paramName] ?? [];
+
+        if (! is_array($arrayData)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($arrayData as $key => $itemData) {
+            if (is_array($itemData)) {
+                $result[$key] = $this->create($itemClass, $itemData);
+            }
+        }
+
+        return $result;
     }
 }
