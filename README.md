@@ -44,6 +44,16 @@ public function createTodo(TodoInput $input) {
 composer require ray/input-query
 ```
 
+## Demo
+
+To see file upload integration in action:
+
+```bash
+php -S localhost:8080 -t demo/
+```
+
+Then visit http://localhost:8080 in your browser.
+
 ## Documentation
 
 Comprehensive documentation including design philosophy, AI prompts for development assistance, and sample data examples can be found in the [docs/](docs/) directory.
@@ -285,6 +295,130 @@ All query keys are normalized to camelCase:
 - `user_name` → `userName`
 - `user-name` → `userName`
 - `UserName` → `userName`
+
+## File Upload Integration
+
+Ray.InputQuery supports file uploads through integration with [Koriym.FileUpload](https://github.com/koriym/Koriym.FileUpload):
+
+```bash
+composer require koriym/file-upload
+```
+
+```php
+use Koriym\FileUpload\FileUpload;
+use Koriym\FileUpload\ErrorFileUpload;
+
+final class UserProfileInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+        #[Input] public readonly FileUpload|ErrorFileUpload $avatar,        // Required avatar
+        #[Input] public readonly FileUpload|ErrorFileUpload|null $banner = null, // Optional banner
+    ) {}
+}
+
+// Method usage example
+class UserController
+{
+    public function updateProfile(UserProfileInput $input): void
+    {
+        // Handle avatar upload
+        if ($input->avatar instanceof FileUpload) {
+            $avatarPath = $this->saveFile($input->avatar, 'avatars/');
+            $this->userService->updateAvatar($input->name, $avatarPath);
+        } elseif ($input->avatar instanceof ErrorFileUpload) {
+            throw new InvalidArgumentException($input->avatar->message);
+        }
+        
+        // Handle optional banner
+        if ($input->banner instanceof FileUpload) {
+            $bannerPath = $this->saveFile($input->banner, 'banners/');
+            $this->userService->updateBanner($input->name, $bannerPath);
+        }
+    }
+}
+```
+
+### Test-Friendly Design
+
+File upload handling is designed to be test-friendly:
+
+- **Production** - FileUpload library handles file uploads automatically
+- **Testing** - Direct FileUpload object injection for easy mocking
+
+```php
+// Production usage - FileUpload library handles file uploads automatically
+$input = $inputQuery->create(UserProfileInput::class, $_POST);
+// FileUpload objects are created automatically from uploaded files
+
+// Testing usage - inject mock FileUpload objects directly for easy testing
+$mockAvatar = FileUpload::create([
+    'name' => 'test.jpg',
+    'type' => 'image/jpeg', 
+    'size' => 1024,
+    'tmp_name' => '/tmp/test',
+    'error' => UPLOAD_ERR_OK,
+]);
+
+$input = $inputQuery->create(UserProfileInput::class, [
+    'name' => 'Test User',
+    'email' => 'test@example.com', 
+    'avatar' => $mockAvatar,
+    'banner' => null
+]);
+```
+
+### Multiple File Uploads
+
+Support for multiple file uploads using array types:
+
+```php
+final class GalleryInput
+{
+    /**
+     * @param list<FileUpload|ErrorFileUpload> $images
+     */
+    public function __construct(
+        #[Input] public readonly string $title,
+        #[Input] public readonly array $images,
+    ) {}
+}
+
+// Method usage example
+class GalleryController
+{
+    public function createGallery(GalleryInput $input): void
+    {
+        $savedImages = [];
+        foreach ($input->images as $image) {
+            if ($image instanceof FileUpload) {
+                $savedImages[] = $this->saveFile($image, 'gallery/');
+            } elseif ($image instanceof ErrorFileUpload) {
+                // Log error but continue with other images
+                $this->logger->warning('Image upload failed: ' . $image->message);
+            }
+        }
+        
+        $this->galleryService->create($input->title, $savedImages);
+    }
+}
+
+// Production usage - FileUpload library handles multiple files automatically
+$input = $inputQuery->create(GalleryInput::class, $_POST);
+// Array of FileUpload objects created automatically from uploaded files
+
+// Testing usage - inject array of mock FileUpload objects for easy testing
+$mockImages = [
+    FileUpload::create(['name' => 'image1.jpg', ...]),
+    FileUpload::create(['name' => 'image2.png', ...])
+];
+
+$input = $inputQuery->create(GalleryInput::class, [
+    'title' => 'My Gallery',
+    'images' => $mockImages
+]);
+```
 
 ## Integration
 
