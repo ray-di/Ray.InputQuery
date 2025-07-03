@@ -38,6 +38,9 @@ public function updateProfile()
         throw new Exception('Invalid email');
     }
 }
+
+// Framework integration
+$result = $controller->updateProfile();
 ```
 
 ## Laravel
@@ -70,6 +73,11 @@ public function updateProfile(UpdateProfileRequest $request)
         $avatarPath = $avatar->store('avatars');
     }
 }
+
+// Framework integration
+$request = UpdateProfileRequest::createFromGlobals();
+$request->validate();
+$result = $controller->updateProfile($request);
 ```
 
 ## Symfony
@@ -103,6 +111,12 @@ public function updateProfile(Request $request)
         $avatar = $form->get('avatar')->getData(); // String field names - no IDE support
     }
 }
+
+// Framework integration
+$form = $this->createForm(ProfileType::class);
+$form->handleRequest($request);
+$data = $form->getData();
+$result = $controller->updateProfile($data);
 ```
 
 ## Ray.InputQuery
@@ -125,7 +139,7 @@ public function updateProfile(
 $inputQuery = new InputQuery(new Injector());
 $method = new ReflectionMethod($controller, 'updateProfile');
 $args = $inputQuery->getArguments($method, $_POST);
-$result = $controller->updateProfile(...$args);
+$result = $method->invokeArgs($controller, $args);
 ```
 
 ## Key Differences
