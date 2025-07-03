@@ -137,6 +137,9 @@ final class UserInput
 
 final class UserListController
 {
+    /**
+     * @param list<UserInput> $users
+     */
     public function updateUsers(
         #[Input(item: UserInput::class)] array $users  // Array of UserInput objects
     ) {
@@ -145,6 +148,9 @@ final class UserListController
         }
     }
     
+    /**
+     * @param ArrayObject<int, UserInput> $users
+     */
     public function processUsers(
         #[Input(item: UserInput::class)] ArrayObject $users  // ArrayObject collection
     ) {
@@ -212,6 +218,10 @@ $data = [
 ];
 
 // In your controller
+/**
+ * @param list<string> $hobbies
+ * @param list<string> $categories
+ */
 public function updatePreferences(
     #[Input] array $hobbies,      // Simple string array
     #[Input] array $categories    // Simple string array
@@ -240,6 +250,9 @@ final class UserCollection extends ArrayObject
     }
 }
 
+/** 
+ * @param array<UserInput> $users 
+ */
 public function handleUsers(
     #[Input(item: UserInput::class)] UserCollection $users
 ) {
