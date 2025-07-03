@@ -95,7 +95,15 @@ final class InputQuery implements InputQueryInterface
             return $this->resolveFromDI($param);
         }
 
-        // Has #[Input] attribute - get from query
+        return $this->resolveInputParameter($param, $query, $inputAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
+    {
         $type = $param->getType();
         $paramName = $param->getName();
 
@@ -104,68 +112,98 @@ final class InputQuery implements InputQueryInterface
         }
 
         if ($type->isBuiltin()) {
-            // Check if it's an array type with item specification
-            if ($type->getName() === 'array') {
-                $inputAttribute = $inputAttributes[0]->newInstance();
-                if ($inputAttribute->item !== null) {
-                    assert(class_exists($inputAttribute->item));
-                    $itemClass = $inputAttribute->item;
-
-                    /** @var class-string<T> $itemClass */
-                    return $this->createArrayOfInputs($paramName, $query, $itemClass);
-                }
-            }
-
-            // Scalar type with #[Input]
-            /** @psalm-suppress MixedAssignment $value */
-
-            $value = $query[$paramName] ?? $this->getDefaultValue($param);
-
-            return $this->convertScalar($value, $type);
+            return $this->resolveBuiltinType($param, $query, $inputAttributes, $type);
         }
 
-        // Check if it's ArrayObject or its subclass with item specification
+        return $this->resolveObjectType($param, $query, $inputAttributes, $type);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
+    {
+        $paramName = $param->getName();
+
+        if ($type->getName() === 'array') {
+            $inputAttribute = $inputAttributes[0]->newInstance();
+            if ($inputAttribute->item !== null) {
+                assert(class_exists($inputAttribute->item));
+                $itemClass = $inputAttribute->item;
+
+                /** @var class-string<T> $itemClass */
+                return $this->createArrayOfInputs($paramName, $query, $itemClass);
+            }
+        }
+
+        // Scalar type with #[Input]
+        /** @psalm-suppress MixedAssignment $value */
+        $value = $query[$paramName] ?? $this->getDefaultValue($param);
+
+        return $this->convertScalar($value, $type);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
+    {
+        $paramName = $param->getName();
         $className = $type->getName();
-        if (class_exists($className) && is_subclass_of($className, ArrayObject::class)) {
-            $inputAttribute = $inputAttributes[0]->newInstance();
-            if ($inputAttribute->item !== null) {
-                assert(class_exists($inputAttribute->item));
-                /** @var class-string<T> $itemClass */
-                $itemClass = $inputAttribute->item;
-                $array = $this->createArrayOfInputs($paramName, $query, $itemClass);
-                $reflectionClass = new ReflectionClass($className);
 
-                return $reflectionClass->newInstance($array);
-            }
+        // Check for ArrayObject types with item specification
+        $arrayObjectResult = $this->resolveArrayObjectType($paramName, $query, $inputAttributes, $className);
+        if ($arrayObjectResult !== null) {
+            return $arrayObjectResult;
         }
 
-        // Check if it's ArrayObject itself with item specification
-        if ($className === ArrayObject::class) {
-            $inputAttribute = $inputAttributes[0]->newInstance();
-            if ($inputAttribute->item !== null) {
-                assert(class_exists($inputAttribute->item));
-                /** @var class-string<T> $itemClass */
-                $itemClass = $inputAttribute->item;
-                $array = $this->createArrayOfInputs($paramName, $query, $itemClass);
-
-                return new ArrayObject($array);
-            }
-        }
-
-        // Object type with #[Input] - create nested
+        // Regular object type with #[Input] - create nested
         $nestedQuery = $this->extractNestedQuery($paramName, $query);
 
         // If no nested keys found, try using the entire query
-        // This handles cases like controller method parameters
         if (empty($nestedQuery)) {
             $nestedQuery = $query;
         }
 
-        $class = $type->getName();
-        assert(class_exists($class));
+        assert(class_exists($className));
 
-        /** @var class-string<T> $class */
-        return $this->create($class, $nestedQuery);
+        /** @var class-string<T> $className */
+        return $this->create($className, $nestedQuery);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     */
+    private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
+    {
+        $isArrayObjectSubclass = class_exists($className) && is_subclass_of($className, ArrayObject::class);
+        $isArrayObject = $className === ArrayObject::class;
+
+        if (! $isArrayObjectSubclass && ! $isArrayObject) {
+            return null;
+        }
+
+        $inputAttribute = $inputAttributes[0]->newInstance();
+        if ($inputAttribute->item === null) {
+            return null;
+        }
+
+        assert(class_exists($inputAttribute->item));
+        /** @var class-string<T> $itemClass */
+        $itemClass = $inputAttribute->item;
+        $array = $this->createArrayOfInputs($paramName, $query, $itemClass);
+
+        if ($isArrayObject) {
+            return new ArrayObject($array);
+        }
+
+        assert(class_exists($className));
+        /** @var class-string $className */
+        $reflectionClass = new ReflectionClass($className);
+        return $reflectionClass->newInstance($array);
     }
 
     private function resolveFromDI(ReflectionParameter $param): mixed
