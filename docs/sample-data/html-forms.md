@@ -335,7 +335,7 @@
     <fieldset>
         <legend>技術スキル</legend>
         <div>
-            <h4>プログラミング言語（複数選択可）</h4>
+            <h4>プログラミング言語（複数選��可）</h4>
             <input name="programming_languages[]" type="checkbox" value="javascript">
             <label>JavaScript</label>
             
@@ -410,7 +410,7 @@
     <fieldset>
         <legend>応募動機</legend>
         <textarea name="motivation" placeholder="当社への応募動機を教えてください" required></textarea>
-        <textarea name="career_goals" placeholder="今後のキャリアゴールについて教えてください"></textarea>
+        <textarea name="career_goals" placeholder="今後のキャリア��ールについて教えてください"></textarea>
     </fieldset>
     
     <!-- 添付ファイル -->

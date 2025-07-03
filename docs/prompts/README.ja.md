@@ -5,12 +5,12 @@
 ## 使い方
 
 ### input-class-generator.md
-  - 
   - Inputクラスの自動生成やリファクタリングをAIに依頼する際に、このプロンプトを与えてください。
   - 既存のフラットなパラメータリストを構造化されたInputオブジェクトへ変換したい場合に活用します。
-- 例: 
 
-- ```html
+例:
+
+```html
   <!-- このHTMLフォームからInputクラスを生成してください -->
   <form>
       <input name="user_name" type="text">
@@ -21,10 +21,10 @@
   ```
 
 ### usage-generator.md
-  - 
   - Inputクラスの利用例や、Ray.MediaQuery・BEAR.Resourceとの連携例をAIに生成させたい場合に、このプロンプトを与えてください。
   - Inputクラスの使い方や実装例を知りたい場合に活用します。
-  - 例: 
+
+例: 
 
 ```php
 final class UserRegistrationInput
@@ -52,7 +52,8 @@ final class ProfileInput
         #[Input] public readonly string $lastName,
         #[Input] public readonly ?string $displayName = null
     ) {}
-}```
+}
+```
 
 ---
 
