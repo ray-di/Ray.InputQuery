@@ -116,7 +116,7 @@ final class InputQuery implements InputQueryInterface
 
         // Handle union types (e.g., FileUpload|ErrorFileUpload)
         if ($type instanceof ReflectionUnionType) {
-            return $this->resolveUnionType($param, $query, $inputAttributes, $type);
+            return $this->resolveUnionType($param, $query, $type);
         }
 
         if (! $type instanceof ReflectionNamedType) {
@@ -519,10 +519,9 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param array<string, mixed> $query
      */
-    private function resolveUnionType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionUnionType $type): mixed
+    private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
         // Check if any of the union types is a FileUpload type
         foreach ($type->getTypes() as $unionType) {
