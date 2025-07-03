@@ -3,7 +3,11 @@
     "allow": [
       "Bash(composer test:*)",
       "Bash(composer install:*)",
-      "Bash(composer:*)"
+      "Bash(composer:*)",
+      "Bash(./vendor/bin/phpunit:*)",
+      "Bash(./vendor/bin/phpmd:*)",
+      "Bash(vendor/bin/phpunit:*)",
+      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text --coverage-filter src/)"
     ],
     "deny": []
   }
