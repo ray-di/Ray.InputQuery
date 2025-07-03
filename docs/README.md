@@ -4,7 +4,7 @@ This directory contains comprehensive documentation for Ray.InputQuery.
 
 ## Directory Structure
 
-### prompts/
+### [prompts/](prompts/)
 Contains AI prompts for automatic generation and development assistance:
 - **input-class-generator.md** - Prompt for generating Input classes from forms or parameter lists
 - **usage-generator.md** - Prompt for generating usage examples and integration patterns
@@ -12,7 +12,7 @@ Contains AI prompts for automatic generation and development assistance:
 
 These prompts help developers leverage AI to accelerate Ray.InputQuery adoption and implementation.
 
-### design/
+### [design/](design/)
 Contains design philosophy, concepts, and architectural documentation:
 - Design principles and philosophy behind Ray.InputQuery
 - Input-as-first-class-citizen concept explanations
@@ -21,7 +21,7 @@ Contains design philosophy, concepts, and architectural documentation:
 
 The design documentation explains the theoretical foundation and rationale behind Ray.InputQuery's approach to input handling.
 
-### sample-data/
+### [sample-data/](sample-data/)
 Contains various data format examples and patterns for Input class generation:
 - Sample data in different formats (HTML forms, JSON schemas, GraphQL schemas, CSV data, OpenAPI specs)
 - PHP method signatures and scalar-to-structured transformation patterns

@@ -4,7 +4,7 @@
 
 ## 使い方
 
-### input-class-generator.md
+### [input-class-generator.md](input-class-generator.md])
   - Inputクラスの自動生成やリファクタリングをAIに依頼する際に、このプロンプトを与えてください。
   - 既存のフラットなパラメータリストを構造化されたInputオブジェクトへ変換したい場合に活用します。
 
@@ -20,7 +20,7 @@
   </form>
   ```
 
-### usage-generator.md
+### [usage-generator.md](usage-generator.md)
   - Inputクラスの利用例や、Ray.MediaQuery・BEAR.Resourceとの連携例をAIに生成させたい場合に、このプロンプトを与えてください。
   - Inputクラスの使い方や実装例を知りたい場合に活用します。
 
