@@ -2,6 +2,49 @@
 
 Structured input objects from HTTP.
 
+## Overview
+
+Ray.InputQuery transforms flat HTTP data into structured PHP objects through explicit type declarations. Using the `#[Input]` attribute, you declare which parameters come from query data, while other parameters are resolved via dependency injection.
+
+**Core Mechanism:**
+- **Attribute-Based Control** - `#[Input]` explicitly marks query-sourced parameters
+- **Prefix-Based Nesting** - `assigneeId`, `assigneeName` fields automatically compose `UserInput` objects
+- **Type-Safe Conversion** - Leverages PHP's type system for automatic scalar conversion
+- **DI Integration** - Parameters without `#[Input]` are resolved from dependency injection
+
+**The Problem:**
+```php
+// Manual parameter extraction and object construction
+$data = $request->getParsedBody(); // or $_POST
+$title = $data['title'] ?? '';
+$assigneeId = $data['assigneeId'] ?? '';
+$assigneeName = $data['assigneeName'] ?? '';
+$assigneeEmail = $data['assigneeEmail'] ?? '';
+
+// Manual validation and object creation
+$assignee = new UserInput($assigneeId, $assigneeName, $assigneeEmail);
+$todo = new TodoInput($title, $assignee);
+
+// Missing DI integration for services
+$logger = $container->get(LoggerInterface::class);
+```
+
+**Ray.InputQuery Solution:**
+```php
+// Declarative structure definition
+final class TodoInput {
+    public function __construct(
+        #[Input] public readonly string $title,
+        #[Input] public readonly UserInput $assignee,  // Auto-composed from assigneeId, assigneeName, assigneeEmail
+        private LoggerInterface $logger  // From DI container
+    ) {}
+}
+
+public function createTodo(TodoInput $input) {
+    // $input automatically structured from request data
+}
+```
+
 ## Installation
 
 ```bash
@@ -41,7 +84,7 @@ use Ray\Di\Injector;
 $injector = new Injector();
 $inputQuery = new InputQuery($injector);
 
-// Create object directly
+// Create object directly from array
 $user = $inputQuery->create(UserInput::class, [
     'name' => 'John Doe',
     'email' => 'john@example.com'
@@ -50,10 +93,14 @@ $user = $inputQuery->create(UserInput::class, [
 echo $user->name;  // John Doe
 echo $user->email; // john@example.com
 
-// Get method arguments
+// Method argument resolution from $_POST
 $method = new ReflectionMethod(UserController::class, 'register');
 $args = $inputQuery->getArguments($method, $_POST);
-// Now you can call: $controller->register(...$args)
+$controller->register(...$args);
+
+// Or with PSR-7 Request
+$args = $inputQuery->getArguments($method, $request->getParsedBody());
+$controller->register(...$args);
 ```
 
 ### Nested Objects
