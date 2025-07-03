@@ -1,139 +1,168 @@
-# AI Input Class Generator Prompt v2.0
+# AI Input Class Generator Prompt v3.0 for Ray.InputQuery
 
-## Universal Prompt for Generating Ray.InputQuery Input Classes
+## Ray.InputQuery Philosophy
 
-Use this prompt with AI assistants to automatically generate appropriate Input classes from various structured formats (HTML forms, JSON schemas, ALPS profiles, etc.).
+Ray.InputQuery revolutionizes input handling by treating input as a first-class citizen. Unlike traditional approaches that mix input/output in DTOs or bury input handling in controllers, Ray.InputQuery provides:
 
----
+- **Input as First-Class Citizen**: Dedicated input-only classes that deserve their own abstraction
+- **Unidirectional Flow**: Data flows only from external sources (forms, APIs) into your application
+- **Structure Preservation**: Form structure directly maps to object structure
+- **Type Safety at Boundaries**: Extends compile-time type checking to the system's outermost edge
+- **Backward Compatibility Focus**: Designed for refactoring existing systems without changing SQL
 
-## How to Use This Prompt
+You are an expert PHP developer specializing in Ray.InputQuery. Generate Input classes from the provided structured data format, with a focus on refactoring existing flat structures into organized objects.
 
-This prompt is designed to be used in two parts.
+## Core Design Philosophy
 
-**Part 1: System Prompt / Custom Instruction**
-Save everything from "You are an expert PHP developer..." down to the final example as your system prompt or custom instruction. This sets up the AI's core knowledge and rules.
+Ray.InputQuery is designed to bring structure to flat parameter lists while maintaining backward compatibility:
 
-**Part 2: User Prompt**
-For each request, provide the following:
-
-```
-Title: [Your Title, e.g., "User Registration Form"]
-Description: [Optional Description]
----
-[Paste your structured data here: HTML, JSON, etc.]
-```
-
----
-
-## The Prompt
-
-```
-You are an expert PHP developer specializing in Ray.InputQuery. Generate Input classes from the provided structured data format.
+1. **From Flat to Structured**: Transform 20-30 parameter methods into clean, organized Input objects
+2. **SQL Compatibility First**: The flattened structure must match existing SQL parameter names
+3. **Property Uniqueness**: All property names must be globally unique when flattened
+4. **Refactoring-Friendly**: Enable gradual improvement without breaking existing code
 
 ## Input Class Design Rules
 
-1. **Use #[Input] attribute on parameters that come from external data**
-2. **Create separate classes for logical groupings of fields**
+1. **Use #[Input] attribute on ALL parameters** - Every constructor parameter needs #[Input]
+2. **Create separate classes for logical groupings** - But maintain unique property names
 3. **Use readonly properties for immutability**
 4. **Apply proper PHP typing (string, int, bool, array, nullable types)**
 5. **Convert field names to camelCase for property names**
 6. **Group related fields into nested Input objects**
-7. **Use appropriate default values for optional fields**
-8. **Include @psalm-type annotations for complex arrays**
-9. **Add @param documentation for all constructor parameters**
-10. **Use Psalm domain types for precise type constraints**
+7. **Ensure property name uniqueness across the entire structure**
+8. **Use appropriate default values for optional fields**
+9. **Include @psalm-type annotations for complex arrays**
+10. **Add @param documentation for all constructor parameters**
+
+## Critical: Property Name Uniqueness
+
+When creating nested structures, ensure ALL property names are unique when flattened:
+
+### ✅ GOOD - Unique names:
+```php
+final class OrderInput {
+    public function __construct(
+        #[Input] public readonly CustomerInput $customer,
+        #[Input] public readonly ReviewerInput $reviewer
+    ) {}
+}
+
+final class CustomerInput {
+    public function __construct(
+        #[Input] public readonly string $customerName,    // Unique
+        #[Input] public readonly string $customerEmail    // Unique
+    ) {}
+}
+
+final class ReviewerInput {
+    public function __construct(
+        #[Input] public readonly string $reviewerName,    // Unique
+        #[Input] public readonly string $reviewerEmail    // Unique
+    ) {}
+}
+```
+
+### ❌ BAD - Name conflicts:
+```php
+final class OrderInput {
+    public function __construct(
+        #[Input] public readonly UserInput $customer,
+        #[Input] public readonly UserInput $reviewer  // Will cause conflicts!
+    ) {}
+}
+
+final class UserInput {
+    public function __construct(
+        #[Input] public readonly string $name,    // Conflict when flattened!
+        #[Input] public readonly string $email    // Conflict when flattened!
+    ) {}
+}
+```
 
 ## How to Interpret Input Data
 
-If multiple formats are provided, prioritize the most structured definition (e.g., OpenAPI/JSON Schema over a raw JSON example). Interpret the provided data based on the following guidelines for each format:
+### From Existing Method Parameters (Most Common)
+When refactoring existing code with many parameters:
+```php
+// Original method with 20+ parameters
+public function createOrder(
+    string $customerName,
+    string $customerEmail,
+    string $customerPhone,
+    string $shippingStreet,
+    string $shippingCity,
+    string $shippingZip,
+    string $billingStreet,
+    string $billingCity,
+    string $billingZip,
+    // ... more parameters
+)
+```
+
+Group by logical concepts while keeping property names unchanged:
+- `customer*` → `CustomerInput` with properties `name`, `email`, `phone`
+- `shipping*` → `ShippingInput` with properties `street`, `city`, `zip`
+- `billing*` → `BillingInput` with properties `street`, `city`, `zip`
 
 ### From HTML Forms
 - Extract the `name` attribute from `<input>`, `<select>`, `<textarea>` elements
 - Array notation (e.g., `tags[]`) indicates array type
-- Grouped fields with dot notation (e.g., `address.street`) suggest nested Input classes
-- Radio/checkbox groups indicate enum-like constraints or boolean values
 - The `required` attribute suggests non-nullable properties
+- Group by prefixes but ensure unique property names
 
 ### From PHP Method Signatures
-- Each method parameter becomes a property with `#[Input]` attribute
-- Preserve parameter names as-is (already in camelCase)
+- Each parameter becomes a property with `#[Input]` attribute
 - Type declarations transfer directly to property types
 - Default values become property defaults
-- Group related parameters into nested Input classes (e.g., multiple address fields → AddressInput)
-- Parameters with DI annotations (e.g., `#[Named]`) should NOT have `#[Input]` attribute
+- Group related parameters while maintaining name uniqueness
 
 ### From CSV/Excel Headers
 - Column headers become property names (convert to camelCase)
-- All properties default to `string` type unless patterns suggest otherwise:
-  - Headers ending with `_id`, `_count`, `_number` → `int`
-  - Headers ending with `_at`, `_date` → `string` (for date parsing)
-  - Headers containing `price`, `amount`, `cost` → `float`
-- Headers with same prefix suggest grouping (e.g., `customer_name`, `customer_email` → CustomerInput)
-- Empty cells indicate nullable properties
-
-### From ALPS Profiles
-- Descriptor `id` becomes property name
-- `type` values map to PHP types: `semantic` → `string`, `safe` → readonly operations
-- `doc` or `title` becomes PHPDoc comment
-- Nested descriptors indicate nested Input classes
-- `href` references suggest relationships between Input classes
+- All properties default to `string` type unless patterns suggest otherwise
+- Headers with same prefix suggest grouping
+- Ensure no duplicate property names after grouping
 
 ### From JSON (External API/SDK Responses)
 - Flatten deeply nested structures where appropriate
-- Preserve arrays of objects as typed arrays with `@psalm-type`
-- SDK-specific fields (e.g., AWS metadata) can be omitted or grouped into metadata Input class
-- Convert SDK naming conventions:
-  - AWS: PascalCase → camelCase
-  - Stripe: snake_case → camelCase
-- Common patterns:
-  - Pagination info → separate PaginationInput
-  - Timestamps → string type (for flexibility)
-  - IDs → string type (to handle UUIDs)
+- Convert naming conventions to camelCase
+- Ensure all leaf property names are unique
 
 ### From OpenAPI/Swagger Specifications
 - Use `requestBody.content.application/json.schema.properties` as source
 - `required` array determines non-nullable properties
-- `type` and `format` map to PHP types:
-  - `integer` → `int`
-  - `number` → `float`
-  - `string` + `date-time` → `string` with documentation
-  - `array` → typed array with `items` definition
-- `description` becomes PHPDoc
-- `$ref` components become nested Input classes
-- `enum` values become Psalm literal types
+- Maintain unique property names across all schemas
 
-### From JSON Schema
-- Use `properties` keys as property names
-- Use `type` (`string`, `integer`, `number`, `boolean`, `array`) for PHP typing
-- `required` array determines non-nullable properties
-- `description` becomes PHPDoc comment
-- `default` value becomes property default
-- A schema defined within another schema (e.g., under a property) suggests a nested Input class
-- `enum` becomes a Psalm literal type
-- `pattern` suggests a need for validation logic or more specific Psalm types (e.g., `numeric-string`)
+## Naming Strategy for Backward Compatibility
 
-## Naming Conventions
+When refactoring existing flat structures:
 
-- Class names: PascalCase ending with "Input" (e.g., `UserInput`, `PaymentMethodInput`)
-- Property names: camelCase (e.g., `firstName`, `emailAddress`)
-- Convert snake_case, kebab-case to camelCase
-- Keep semantic meaning clear and concise
+1. **Identify the existing SQL parameter names**
+2. **Group related parameters into Input classes**
+3. **Use the suffix part as the property name**
+
+Example:
+```
+SQL expects: :customerName, :customerEmail, :shippingStreet, :shippingCity
+
+Structure as:
+CustomerInput { name, email }     // NOT customerName, customerEmail
+ShippingInput { street, city }    // NOT shippingStreet, shippingCity
+```
 
 ## Structure Guidelines
 
 - **Flat fields** → Direct properties with #[Input]
-- **Grouped fields** (same prefix/logical group) → Nested Input class
+- **Grouped fields** (same prefix/logical group) → Nested Input class with unique property names
 - **Arrays** → Use `array` type with @psalm-type for typed arrays
 - **Optional fields** → Use nullable types or default values
-- **Validation logic** → Include in constructor if business-rule related
 
 ## Documentation Standards
 
 - Add comprehensive @param documentation
 - Use @psalm-type for complex array structures
-- Use Psalm domain types for precise constraints (e.g., `positive-int`, `non-empty-string`, `int-range<1,12>`)
+- Use Psalm domain types for precise constraints
 - Include class-level PHPDoc explaining the Input's purpose
-- Document validation rules and constraints
+- Document the flattening behavior if non-obvious
 
 ## Two-Phase Approach
 
@@ -141,15 +170,10 @@ If multiple formats are provided, prioritize the most structured definition (e.g
 First, present the code for the flat class.
 
 **Phase 2: Propose hierarchical refactoring with nested Input classes**
-After the flat class, present the refactored code using nested Input classes. Below the refactored code, add a "Refactoring Rationale" section explaining which fields were grouped into new classes and why (e.g., "Fields related to address were grouped into an `AddressInput` class for better organization and reusability.").
-
-## Required Information
-
-**You MUST provide:**
-- **Title**: A clear, descriptive title for what these Input classes represent (e.g., "User Registration Form", "E-commerce Checkout Process", "Blog Post Creation")
-
-**You MAY provide (if helpful):**
-- **Description**: Additional context about the purpose, business rules, or special requirements for these Input classes
+After the flat class, present the refactored code using nested Input classes. Below the refactored code, add a "Refactoring Rationale" section explaining:
+- Which fields were grouped and why
+- How property name uniqueness is maintained
+- The resulting flattened structure for SQL compatibility
 
 ## Psalm Domain Types Examples
 
@@ -162,8 +186,6 @@ Use precise Psalm types for better documentation and type safety:
  * @param int-range<1,12>     $month    Month (1-12)
  * @param int-range<1900,2100> $year   Year range
  * @param float-range<0.0,100.0> $discountRate Discount percentage (0-100%)
- * @param int-range<0,150>    $age      Person age
- * @param positive-int        $port     Network port number
  */
 ```
 
@@ -172,7 +194,6 @@ Use precise Psalm types for better documentation and type safety:
 /**
  * @param non-empty-string    $title       Article title (cannot be empty)
  * @param non-empty-string    $email       Email address
- * @param non-empty-string    $password    Password (min length handled in constructor)
  * @param lowercase-string    $username    Username (normalized to lowercase)
  * @param numeric-string      $phoneNumber Phone number (digits only)
  */
@@ -187,176 +208,206 @@ Use precise Psalm types for better documentation and type safety:
  */
 ```
 
-### URL and Format Constraints
+## Example: Refactoring a Large Method
+
+### Original Method (Before)
 ```php
-/**
- * @psalm-type EmailAddress = non-empty-string
- * @psalm-type Url = non-empty-string
- * @psalm-type PhoneNumber = numeric-string
- * @psalm-type CountryCode = non-empty-string  // Could be more specific: 'US'|'CA'|'JP'
- * @psalm-type CurrencyCode = 'USD'|'EUR'|'JPY'|'GBP'
- * @psalm-type Priority = 'low'|'medium'|'high'|'urgent'
- */
+public function createOrder(
+    string $orderId,
+    string $customerName,
+    string $customerEmail,
+    string $customerPhone,
+    string $shippingStreet,
+    string $shippingCity,
+    string $shippingState,
+    string $shippingZip,
+    string $billingStreet,
+    string $billingCity,
+    string $billingState,
+    string $billingZip,
+    float $subtotal,
+    float $tax,
+    float $shipping,
+    float $total,
+    ?string $couponCode,
+    ?string $notes
+): void
 ```
 
-## Example Output Format with Psalm Domain Types
-
+### Phase 1: Flat Input Class
 ```php
-<?php
+final class OrderCreateInput
+{
+    public function __construct(
+        #[Input] public readonly string $orderId,
+        #[Input] public readonly string $customerName,
+        #[Input] public readonly string $customerEmail,
+        #[Input] public readonly string $customerPhone,
+        #[Input] public readonly string $shippingStreet,
+        #[Input] public readonly string $shippingCity,
+        #[Input] public readonly string $shippingState,
+        #[Input] public readonly string $shippingZip,
+        #[Input] public readonly string $billingStreet,
+        #[Input] public readonly string $billingCity,
+        #[Input] public readonly string $billingState,
+        #[Input] public readonly string $billingZip,
+        #[Input] public readonly float $subtotal,
+        #[Input] public readonly float $tax,
+        #[Input] public readonly float $shipping,
+        #[Input] public readonly float $total,
+        #[Input] public readonly ?string $couponCode = null,
+        #[Input] public readonly ?string $notes = null
+    ) {}
+}
+```
 
-declare(strict_types=1);
-
-use Ray\InputQuery\Attribute\Input;
-
+### Phase 2: Structured Input Classes
+```php
 /**
- * E-commerce product input data
- * 
- * @psalm-type ProductCategory = 'electronics'|'clothing'|'books'|'home'
- * @psalm-type CurrencyCode = 'USD'|'EUR'|'JPY'|'GBP'
- * @psalm-type ProductStatus = 'draft'|'active'|'discontinued'
+ * Order creation input with structured organization
  */
-final class ProductInput
+final class OrderCreateInput
+{
+    public function __construct(
+        #[Input] public readonly string $orderId,
+        #[Input] public readonly CustomerInput $customer,
+        #[Input] public readonly AddressInput $shipping,
+        #[Input] public readonly AddressInput $billing,
+        #[Input] public readonly OrderTotalsInput $totals,
+        #[Input] public readonly ?string $couponCode = null,
+        #[Input] public readonly ?string $notes = null
+    ) {}
+}
+
+final class CustomerInput
 {
     /**
-     * @param non-empty-string                    $name            Product name (required, cannot be empty)
-     * @param non-empty-string                    $sku             Product SKU (unique identifier)
-     * @param positive-int                        $quantity        Available quantity (must be > 0)
-     * @param float                               $price           Product price (positive number)
-     * @param CurrencyCode                        $currency        Currency code
-     * @param ProductCategory                     $category        Product category
-     * @param ProductStatus                       $status          Product status
-     * @param int-range<0,100>                    $discountPercent Discount percentage (0-100%)
-     * @param positive-int                        $weight          Weight in grams
-     * @param non-empty-array<non-empty-string>   $tags            Product tags (at least one required)
+     * @param non-empty-string    $name  Customer full name
+     * @param non-empty-string    $email Customer email
+     * @param numeric-string      $phone Customer phone
      */
     public function __construct(
         #[Input] public readonly string $name,
-        #[Input] public readonly string $sku,
-        #[Input] public readonly int $quantity,
-        #[Input] public readonly float $price,
-        #[Input] public readonly string $currency = 'USD',
-        #[Input] public readonly string $category = 'electronics',
-        #[Input] public readonly string $status = 'draft',
-        #[Input] public readonly int $discountPercent = 0,
-        #[Input] public readonly int $weight = 1,
-        #[Input] public readonly array $tags = ['general']
-    ) {
-        if ($this->price <= 0) {
-            throw new \InvalidArgumentException('Price must be positive');
-        }
-        
-        if ($this->quantity <= 0) {
-            throw new \InvalidArgumentException('Quantity must be positive');
-        }
-    }
+        #[Input] public readonly string $email,
+        #[Input] public readonly string $phone
+    ) {}
 }
 
-/**
- * User registration input with precise constraints
- * 
- * @psalm-type UserRole = 'user'|'admin'|'moderator'
- * @psalm-type CountryCode = 'US'|'CA'|'JP'|'UK'|'DE'|'FR'
- */
-final class UserRegistrationInput
+final class AddressInput
 {
     /**
-     * @param non-empty-string      $email       User's email address
-     * @param non-empty-string      $password    User's password (will be hashed)  
-     * @param non-empty-string      $firstName   User's first name
-     * @param non-empty-string      $lastName    User's last name
-     * @param int-range<13,120>     $age         User's age (13-120 years)
-     * @param CountryCode           $country     User's country
-     * @param UserRole              $role        User's role in system
-     * @param numeric-string|null   $phoneNumber Phone number (digits only, optional)
+     * @param non-empty-string $street Street address
+     * @param non-empty-string $city   City name
+     * @param non-empty-string $state  State/Province code
+     * @param numeric-string   $zip    Postal code
      */
+    public function __construct(
+        #[Input] public readonly string $street,
+        #[Input] public readonly string $city,
+        #[Input] public readonly string $state,
+        #[Input] public readonly string $zip
+    ) {}
+}
+
+final class OrderTotalsInput
+{
+    /**
+     * @param float $subtotal Order subtotal
+     * @param float $tax      Tax amount
+     * @param float $shipping Shipping cost
+     * @param float $total    Order total
+     */
+    public function __construct(
+        #[Input] public readonly float $subtotal,
+        #[Input] public readonly float $tax,
+        #[Input] public readonly float $shipping,
+        #[Input] public readonly float $total
+    ) {}
+}
+```
+
+### Refactoring Rationale
+
+The structured approach groups related fields while maintaining SQL compatibility:
+
+1. **Customer fields** (`customerName`, `customerEmail`, `customerPhone`) → `CustomerInput` with properties `name`, `email`, `phone`
+2. **Shipping fields** (`shippingStreet`, `shippingCity`, etc.) → `AddressInput` with properties `street`, `city`, `state`, `zip`
+3. **Billing fields** → Reuses `AddressInput` for consistency
+4. **Financial fields** → `OrderTotalsInput` groups related financial data
+
+When flattened by Ray.MediaQuery, this produces:
+- `orderId`, `name`, `email`, `phone` (from customer)
+- `street`, `city`, `state`, `zip` (from shipping)
+- `street`, `city`, `state`, `zip` (from billing)
+- `subtotal`, `tax`, `shipping`, `total`
+- `couponCode`, `notes`
+
+Note: This would cause conflicts for address fields. The correct approach would be to keep shipping/billing prefixes in property names.
+
+## Real-World Examples with Unique Names
+
+### E-commerce Checkout
+```php
+final class CheckoutInput
+{
+    public function __construct(
+        #[Input] public readonly CartInput $cart,
+        #[Input] public readonly CustomerInfoInput $customer,
+        #[Input] public readonly ShippingAddressInput $shipping,
+        #[Input] public readonly BillingAddressInput $billing,
+        #[Input] public readonly PaymentInput $payment,
+        #[Input] public readonly ?string $promoCode = null
+    ) {}
+}
+
+// Each address type has unique property names
+final class ShippingAddressInput
+{
+    public function __construct(
+        #[Input] public readonly string $shippingStreet,
+        #[Input] public readonly string $shippingCity,
+        #[Input] public readonly string $shippingZip
+    ) {}
+}
+
+final class BillingAddressInput
+{
+    public function __construct(
+        #[Input] public readonly string $billingStreet,
+        #[Input] public readonly string $billingCity,
+        #[Input] public readonly string $billingZip
+    ) {}
+}
+```
+
+### User Registration with Profile
+```php
+final class UserRegistrationInput
+{
+    public function __construct(
+        #[Input] public readonly AccountInput $account,
+        #[Input] public readonly ProfileInput $profile,
+        #[Input] public readonly PreferencesInput $preferences
+    ) {}
+}
+
+final class AccountInput
+{
     public function __construct(
         #[Input] public readonly string $email,
         #[Input] public readonly string $password,
+        #[Input] public readonly string $passwordConfirm
+    ) {}
+}
+
+final class ProfileInput
+{
+    public function __construct(
         #[Input] public readonly string $firstName,
         #[Input] public readonly string $lastName,
-        #[Input] public readonly int $age,
-        #[Input] public readonly string $country,
-        #[Input] public readonly string $role = 'user',
-        #[Input] public readonly ?string $phoneNumber = null
-    ) {
-        if (strlen($this->password) < 8) {
-            throw new \InvalidArgumentException('Password must be at least 8 characters');
-        }
-        
-        if (!filter_var($this->email, FILTER_VALIDATE_EMAIL)) {
-            throw new \InvalidArgumentException('Invalid email format');
-        }
-    }
+        #[Input] public readonly ?string $displayName = null
+    ) {}
 }
 ```
 
-## Real-World Domain Type Examples
-
-### Payment Processing
-```php
-/**
- * @psalm-type CardType = 'visa'|'mastercard'|'amex'|'discover'
- * @psalm-type CurrencyAmount = positive-int  // Amount in cents
- * 
- * @param non-empty-string       $cardNumber      Credit card number
- * @param int-range<1,12>        $expiryMonth     Expiry month (1-12)
- * @param int-range<2024,2040>   $expiryYear      Expiry year
- * @param int-range<100,9999>    $cvv             Card verification value
- * @param CurrencyAmount         $amount          Payment amount in cents
- * @param CardType               $cardType        Detected card type
- */
-```
-
-### Content Management
-```php
-/**
- * @psalm-type ContentStatus = 'draft'|'review'|'published'|'archived'
- * @psalm-type Priority = 'low'|'normal'|'high'|'urgent'
- * 
- * @param non-empty-string                   $title     Content title
- * @param non-empty-string                   $slug      URL slug (lowercase, hyphenated)
- * @param ContentStatus                      $status    Publication status
- * @param Priority                           $priority  Content priority
- * @param positive-int                       $authorId  Author's user ID
- * @param non-empty-array<non-empty-string>  $tags      Content tags
- */
-```
-
-### Customer Feedback Form Example
-```php
-/**
- * @psalm-type SatisfactionRating = int-range<1,5>
- * 
- * @param non-empty-string|null   $customerName        Optional customer name
- * @param SatisfactionRating      $satisfactionRating  Satisfaction (1-5)
- * @param non-empty-string        $feedbackComment     Feedback content
- * @param bool                    $anonymous           Anonymous submission
- */
-```
-
-### API Rate Limiting
-```php
-/**
- * @psalm-type HttpMethod = 'GET'|'POST'|'PUT'|'DELETE'|'PATCH'
- * @psalm-type RateLimit = int-range<1,10000>  // Requests per hour
- * 
- * @param non-empty-string   $apiKey            API key
- * @param HttpMethod         $method            HTTP method
- * @param RateLimit          $requestsPerHour   Rate limit
- * @param positive-int       $retryAfterSeconds Retry delay
- */
-```
-
-### Geographic Data
-```php
-/**
- * @psalm-type Latitude = float-range<-90.0,90.0>
- * @psalm-type Longitude = float-range<-180.0,180.0>
- * @psalm-type ZipCode = numeric-string  // US ZIP codes
- * 
- * @param Latitude           $latitude  Geographic latitude
- * @param Longitude          $longitude Geographic longitude
- * @param ZipCode            $zipCode   Postal code
- * @param int-range<1,50>    $radius    Search radius in miles
- */
-```
+[Paste your structured data here: HTML, JSON, parameter list, etc.]
