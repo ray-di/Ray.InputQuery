@@ -33,6 +33,12 @@ final class ArrayInputTest extends TestCase
         ];
 
         $controller = new class {
+            /**
+             * @param array<mixed> $users
+             * @param array<mixed>
+             *
+             * @return array<mixed>
+             */
             public function listUsers(
                 #[Input(item: UserInputWithAttribute::class)]
                 array $users,
@@ -94,6 +100,11 @@ final class ArrayInputTest extends TestCase
         $query = ['users' => []];
 
         $controller = new class {
+            /**
+             * @param array<mixed> $users
+             *
+             * @return array<mixed>
+             */
             public function listUsers(
                 #[Input(item: UserInputWithAttribute::class)]
                 array $users,
@@ -113,6 +124,11 @@ final class ArrayInputTest extends TestCase
     {
         $query = [];
 
+        /**
+         * @param array<mixed> $users
+         *
+         * @return array<mixed>
+         */
         $controller = new class {
             public function listUsers(
                 #[Input(item: UserInputWithAttribute::class)]
@@ -131,6 +147,11 @@ final class ArrayInputTest extends TestCase
 
     public function testNonArrayValueForArrayParameter(): void
     {
+        /**
+         * @param array<mixed> $users
+         *
+         * @return array<mixed>
+         */
         $query = ['users' => 'not-an-array'];
 
         $controller = new class {
@@ -158,6 +179,11 @@ final class ArrayInputTest extends TestCase
             ],
         ];
 
+        /**
+         * @param array<mixed> $users
+         *
+         * @return array<mixed>
+         */
         $controller = new class {
             public function listUsers(
                 #[Input(item: UserInputWithAttribute::class)]
@@ -184,6 +210,11 @@ final class ArrayInputTest extends TestCase
             ],
         ];
 
+        /**
+         * @param array<mixed> $users
+         *
+         * @return array<mixed>
+         */
         $controller = new class {
             public function listUsers(
                 #[Input(item: UserInputWithAttribute::class)]
