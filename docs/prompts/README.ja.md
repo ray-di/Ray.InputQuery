@@ -4,7 +4,7 @@
 
 ## 使い方
 
-### [input-class-generator.md](input-class-generator.md])
+### [input-class-generator.md](input-class-generator.md)
   - Inputクラスの自動生成やリファクタリングをAIに依頼する際に、このプロンプトを与えてください。
   - 既存のフラットなパラメータリストを構造化されたInputオブジェクトへ変換したい場合に活用します。
 
