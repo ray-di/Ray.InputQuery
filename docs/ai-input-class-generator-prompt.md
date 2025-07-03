@@ -1,8 +1,27 @@
-# AI Input Class Generator Prompt
+# AI Input Class Generator Prompt v2.0
 
 ## Universal Prompt for Generating Ray.InputQuery Input Classes
 
 Use this prompt with AI assistants to automatically generate appropriate Input classes from various structured formats (HTML forms, JSON schemas, ALPS profiles, etc.).
+
+---
+
+## How to Use This Prompt
+
+This prompt is designed to be used in two parts.
+
+**Part 1: System Prompt / Custom Instruction**
+Save everything from "You are an expert PHP developer..." down to the final example as your system prompt or custom instruction. This sets up the AI's core knowledge and rules.
+
+**Part 2: User Prompt**
+For each request, provide the following:
+
+```
+Title: [Your Title, e.g., "User Registration Form"]
+Description: [Optional Description]
+---
+[Paste your structured data here: HTML, JSON, etc.]
+```
 
 ---
 
@@ -23,6 +42,75 @@ You are an expert PHP developer specializing in Ray.InputQuery. Generate Input c
 8. **Include @psalm-type annotations for complex arrays**
 9. **Add @param documentation for all constructor parameters**
 10. **Use Psalm domain types for precise type constraints**
+
+## How to Interpret Input Data
+
+If multiple formats are provided, prioritize the most structured definition (e.g., OpenAPI/JSON Schema over a raw JSON example). Interpret the provided data based on the following guidelines for each format:
+
+### From HTML Forms
+- Extract the `name` attribute from `<input>`, `<select>`, `<textarea>` elements
+- Array notation (e.g., `tags[]`) indicates array type
+- Grouped fields with dot notation (e.g., `address.street`) suggest nested Input classes
+- Radio/checkbox groups indicate enum-like constraints or boolean values
+- The `required` attribute suggests non-nullable properties
+
+### From PHP Method Signatures
+- Each method parameter becomes a property with `#[Input]` attribute
+- Preserve parameter names as-is (already in camelCase)
+- Type declarations transfer directly to property types
+- Default values become property defaults
+- Group related parameters into nested Input classes (e.g., multiple address fields → AddressInput)
+- Parameters with DI annotations (e.g., `#[Named]`) should NOT have `#[Input]` attribute
+
+### From CSV/Excel Headers
+- Column headers become property names (convert to camelCase)
+- All properties default to `string` type unless patterns suggest otherwise:
+  - Headers ending with `_id`, `_count`, `_number` → `int`
+  - Headers ending with `_at`, `_date` → `string` (for date parsing)
+  - Headers containing `price`, `amount`, `cost` → `float`
+- Headers with same prefix suggest grouping (e.g., `customer_name`, `customer_email` → CustomerInput)
+- Empty cells indicate nullable properties
+
+### From ALPS Profiles
+- Descriptor `id` becomes property name
+- `type` values map to PHP types: `semantic` → `string`, `safe` → readonly operations
+- `doc` or `title` becomes PHPDoc comment
+- Nested descriptors indicate nested Input classes
+- `href` references suggest relationships between Input classes
+
+### From JSON (External API/SDK Responses)
+- Flatten deeply nested structures where appropriate
+- Preserve arrays of objects as typed arrays with `@psalm-type`
+- SDK-specific fields (e.g., AWS metadata) can be omitted or grouped into metadata Input class
+- Convert SDK naming conventions:
+  - AWS: PascalCase → camelCase
+  - Stripe: snake_case → camelCase
+- Common patterns:
+  - Pagination info → separate PaginationInput
+  - Timestamps → string type (for flexibility)
+  - IDs → string type (to handle UUIDs)
+
+### From OpenAPI/Swagger Specifications
+- Use `requestBody.content.application/json.schema.properties` as source
+- `required` array determines non-nullable properties
+- `type` and `format` map to PHP types:
+  - `integer` → `int`
+  - `number` → `float`
+  - `string` + `date-time` → `string` with documentation
+  - `array` → typed array with `items` definition
+- `description` becomes PHPDoc
+- `$ref` components become nested Input classes
+- `enum` values become Psalm literal types
+
+### From JSON Schema
+- Use `properties` keys as property names
+- Use `type` (`string`, `integer`, `number`, `boolean`, `array`) for PHP typing
+- `required` array determines non-nullable properties
+- `description` becomes PHPDoc comment
+- `default` value becomes property default
+- A schema defined within another schema (e.g., under a property) suggests a nested Input class
+- `enum` becomes a Psalm literal type
+- `pattern` suggests a need for validation logic or more specific Psalm types (e.g., `numeric-string`)
 
 ## Naming Conventions
 
@@ -46,6 +134,14 @@ You are an expert PHP developer specializing in Ray.InputQuery. Generate Input c
 - Use Psalm domain types for precise constraints (e.g., `positive-int`, `non-empty-string`, `int-range<1,12>`)
 - Include class-level PHPDoc explaining the Input's purpose
 - Document validation rules and constraints
+
+## Two-Phase Approach
+
+**Phase 1: Generate a comprehensive flat Input class with all fields**
+First, present the code for the flat class.
+
+**Phase 2: Propose hierarchical refactoring with nested Input classes**
+After the flat class, present the refactored code using nested Input classes. Below the refactored code, add a "Refactoring Rationale" section explaining which fields were grouped into new classes and why (e.g., "Fields related to address were grouped into an `AddressInput` class for better organization and reusability.").
 
 ## Required Information
 
@@ -71,7 +167,7 @@ Use precise Psalm types for better documentation and type safety:
  */
 ```
 
-### String Constraints  
+### String Constraints
 ```php
 /**
  * @param non-empty-string    $title       Article title (cannot be empty)
@@ -102,13 +198,6 @@ Use precise Psalm types for better documentation and type safety:
  * @psalm-type Priority = 'low'|'medium'|'high'|'urgent'
  */
 ```
-
-## Two-Phase Approach
-
-**Phase 1: Generate a comprehensive flat Input class with all fields**
-**Phase 2: Propose hierarchical refactoring with nested Input classes**
-
-This allows you to see both the complete picture and the organized structure.
 
 ## Example Output Format with Psalm Domain Types
 
@@ -238,10 +327,10 @@ final class UserRegistrationInput
 /**
  * @psalm-type SatisfactionRating = int-range<1,5>
  * 
- * @param non-empty-string|null   $customerName        任意の顧客名
- * @param SatisfactionRating      $satisfactionRating  満足度（1〜5）
- * @param non-empty-string        $feedbackComment     フィードバック内容
- * @param bool                    $anonymous           匿名投稿かどうか
+ * @param non-empty-string|null   $customerName        Optional customer name
+ * @param SatisfactionRating      $satisfactionRating  Satisfaction (1-5)
+ * @param non-empty-string        $feedbackComment     Feedback content
+ * @param bool                    $anonymous           Anonymous submission
  */
 ```
 
