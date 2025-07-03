@@ -102,6 +102,40 @@ All query keys are normalized to camelCase:
 - `user-name` → `userName`
 - `UserName` → `userName`
 
+### Input Format Requirements
+
+Ray.InputQuery expects **flat key-value pairs** as input. Nested array structures are not supported:
+
+```php
+// ✅ Correct - Flat structure
+$data = [
+    'customerName' => 'John Doe',
+    'customerEmail' => 'john@example.com',
+    'shippingCity' => 'Tokyo'
+];
+
+// ❌ Wrong - Nested arrays (e.g., from customer[name] form fields)
+$data = [
+    'customer' => [
+        'name' => 'John Doe',
+        'email' => 'john@example.com'
+    ]
+];
+```
+
+**Why this restriction?** When nested objects are flattened for database operations, all property names must be globally unique to avoid conflicts. This design ensures predictable parameter binding and prevents naming collisions.
+For HTML forms, use flat naming:
+
+```html
+<!-- ✅ Correct -->
+<input name="customerName">
+<input name="customerEmail">
+
+<!-- ❌ Avoid -->
+<input name="customer[name]">
+<input name="customer[email]">
+```
+
 ## Integration
 
 Ray.InputQuery is designed as a foundation library to be used by:
