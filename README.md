@@ -153,7 +153,7 @@ final class UserListController
 }
 ```
 
-**Query data format for arrays:**
+#### Query data format for arrays
 
 Arrays should be submitted as indexed arrays. Here's how to structure HTML forms and the resulting data:
 
@@ -166,6 +166,7 @@ Arrays should be submitted as indexed arrays. Here's how to structure HTML forms
     <input name="users[1][id]" value="2">
     <input name="users[1][name]" value="Horikawa">
 </form>
+
 ```
 
 This will be received as:
@@ -182,22 +183,24 @@ $args = $inputQuery->getArguments($method, $data);
 // $args[0] will be an array of UserInput objects
 ```
 
-**Simple array values (e.g., checkboxes):**
+#### Simple array values (e.g., checkboxes)
 
 For simple arrays like checkboxes or multi-select:
 
 ```html
-<!-- Checkbox group -->
-<input name="hobbies[]" type="checkbox" value="music">
-<input name="hobbies[]" type="checkbox" value="sports">
-<input name="hobbies[]" type="checkbox" value="reading">
-
-<!-- Multi-select -->
-<select name="categories[]" multiple>
-    <option value="tech">Technology</option>
-    <option value="business">Business</option>
-    <option value="lifestyle">Lifestyle</option>
-</select>
+<form method="post">
+    <!-- Checkbox group -->
+    <input name="hobbies[]" type="checkbox" value="music">
+    <input name="hobbies[]" type="checkbox" value="sports">
+    <input name="hobbies[]" type="checkbox" value="reading">
+    
+    <!-- Multi-select -->
+    <select name="categories[]" multiple>
+        <option value="tech">Technology</option>
+        <option value="business">Business</option>
+        <option value="lifestyle">Lifestyle</option>
+    </select>
+</form>
 ```
 
 This will be received as:
@@ -217,14 +220,14 @@ public function updatePreferences(
 }
 ```
 
-**Note:** For non-array parameters, use flat naming without brackets:
+**Note**: For non-array parameters, use flat naming without brackets:
 ```html
 <!-- Single object properties -->
 <input name="customerName" value="Jingu">
 <input name="customerEmail" value="jingu@example.com">
 ```
 
-**ArrayObject Inheritance Support:**
+#### ArrayObject Inheritance Support
 
 Custom ArrayObject subclasses are also supported:
 
