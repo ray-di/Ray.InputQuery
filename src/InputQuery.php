@@ -6,6 +6,7 @@ namespace Ray\InputQuery;
 
 use ArrayObject;
 use InvalidArgumentException;
+use Koriym\FileUpload\FileUpload;
 use Override;
 use Ray\Di\Di\Named;
 use Ray\Di\Di\Qualifier;
@@ -22,6 +23,7 @@ use ReflectionUnionType;
 use function array_key_exists;
 use function assert;
 use function class_exists;
+use function count;
 use function gettype;
 use function is_array;
 use function is_bool;
@@ -39,6 +41,8 @@ use function strlen;
 use function strtolower;
 use function substr;
 use function ucwords;
+
+use const UPLOAD_ERR_NO_FILE;
 
 /**
  * @template T of object
@@ -66,7 +70,6 @@ final class InputQuery implements InputQueryInterface
         return $args;
     }
 
-
     /**
      * @param class-string<T>      $class
      * @param array<string, mixed> $query
@@ -87,7 +90,6 @@ final class InputQuery implements InputQueryInterface
 
         return $reflection->newInstanceArgs($args);
     }
-
 
     /** @param array<string, mixed> $query */
     private function resolveParameter(ReflectionParameter $param, array $query): mixed
@@ -111,7 +113,6 @@ final class InputQuery implements InputQueryInterface
     {
         $type = $param->getType();
         $paramName = $param->getName();
-
 
         // Handle union types (e.g., FileUpload|ErrorFileUpload)
         if ($type instanceof ReflectionUnionType) {
@@ -397,49 +398,49 @@ final class InputQuery implements InputQueryInterface
         if (! class_exists('Koriym\FileUpload\FileUpload')) {
             return false;
         }
-        
-        return $className === 'Koriym\FileUpload\FileUpload' 
+
+        return $className === 'Koriym\FileUpload\FileUpload'
             || $className === 'Koriym\FileUpload\ErrorFileUpload'
-            || is_subclass_of($className, \Koriym\FileUpload\FileUpload::class);
+            || is_subclass_of($className, FileUpload::class);
     }
 
-    /**
-     * @param array<string, mixed> $query
-     */
+    /** @param array<string, mixed> $query */
     private function resolveFileUpload(ReflectionParameter $param, array $query): mixed
     {
         $paramName = $param->getName();
-        
+
         // Check if FileUpload is provided in query (for testing)
         if (array_key_exists($paramName, $query)) {
             return $query[$paramName];
         }
-        
+
         // Try to create from $_FILES
         if (isset($_FILES[$paramName])) {
             $fileData = $_FILES[$paramName];
-            
+
             // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
             if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
                     return $param->getDefaultValue();
                 }
+
                 throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
             }
-            
-            return \Koriym\FileUpload\FileUpload::create($fileData);
+
+            return FileUpload::create($fileData);
         }
-        
+
         // No file found
         if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
             return $param->getDefaultValue();
         }
-        
+
         throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
     }
 
     /**
      * @param array<string, mixed> $query
+     *
      * @return array<array-key, mixed>
      */
     private function createArrayOfFileUploads(string $paramName, array $query): array
@@ -448,15 +449,15 @@ final class InputQuery implements InputQueryInterface
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
             return $query[$paramName];
         }
-        
+
         // Try to create from $_FILES
-        if (!isset($_FILES[$paramName])) {
+        if (! isset($_FILES[$paramName])) {
             return [];
         }
 
         $arrayData = $_FILES[$paramName];
-        
-        if (!is_array($arrayData)) {
+
+        if (! is_array($arrayData)) {
             return [];
         }
 
@@ -467,9 +468,9 @@ final class InputQuery implements InputQueryInterface
 
         // Handle regular array format (each element is a complete file array)
         $result = [];
-        
+
         foreach ($arrayData as $key => $fileData) {
-            if (!is_array($fileData)) {
+            if (! is_array($fileData)) {
                 throw new InvalidArgumentException(
                     sprintf(
                         'Expected array for file upload at key "%s", got %s.',
@@ -484,7 +485,7 @@ final class InputQuery implements InputQueryInterface
                 continue;
             }
 
-            $result[$key] = \Koriym\FileUpload\FileUpload::create($fileData);
+            $result[$key] = FileUpload::create($fileData);
         }
 
         return $result;
@@ -492,18 +493,20 @@ final class InputQuery implements InputQueryInterface
 
     /**
      * Convert HTML multiple file upload format to individual file arrays
+     *
      * @param array<string, mixed> $multipleFileData
+     *
      * @return array<array-key, mixed>
      */
     private function convertMultipleFileFormat(array $multipleFileData): array
     {
-        if (!isset($multipleFileData['name']) || !is_array($multipleFileData['name'])) {
+        if (! isset($multipleFileData['name']) || ! is_array($multipleFileData['name'])) {
             return [];
         }
-        
+
         $result = [];
         $fileCount = count($multipleFileData['name']);
-        
+
         for ($i = 0; $i < $fileCount; $i++) {
             $fileData = [
                 'name' => $multipleFileData['name'][$i] ?? '',
@@ -512,15 +515,15 @@ final class InputQuery implements InputQueryInterface
                 'tmp_name' => isset($multipleFileData['tmp_name']) && is_array($multipleFileData['tmp_name']) ? ($multipleFileData['tmp_name'][$i] ?? '') : '',
                 'error' => isset($multipleFileData['error']) && is_array($multipleFileData['error']) ? ($multipleFileData['error'][$i] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE,
             ];
-            
+
             // Skip files that weren't uploaded
             if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
-            
-            $result[$i] = \Koriym\FileUpload\FileUpload::create($fileData);
+
+            $result[$i] = FileUpload::create($fileData);
         }
-        
+
         return $result;
     }
 
@@ -540,6 +543,7 @@ final class InputQuery implements InputQueryInterface
 
         // Not a FileUpload union type, handle as regular parameter
         $paramName = $param->getName();
+
         return $query[$paramName] ?? $this->getDefaultValue($param);
     }
 }
