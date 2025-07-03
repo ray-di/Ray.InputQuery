@@ -26,6 +26,7 @@ use function is_int;
 use function is_numeric;
 use function is_scalar;
 use function is_string;
+use function is_subclass_of;
 use function lcfirst;
 use function sprintf;
 use function str_replace;
@@ -118,8 +119,20 @@ final class InputQuery implements InputQueryInterface
             return $this->convertScalar($value, $type);
         }
 
-        // Check if it's ArrayObject with item specification
-        if ($type->getName() === 'ArrayObject') {
+        // Check if it's ArrayObject or its subclass with item specification
+        $className = $type->getName();
+        if (class_exists($className) && is_subclass_of($className, ArrayObject::class)) {
+            $inputAttribute = $inputAttributes[0]->newInstance();
+            if ($inputAttribute->item !== null) {
+                $array = $this->createArrayOfInputs($paramName, $query, $inputAttribute->item);
+                $reflectionClass = new ReflectionClass($className);
+
+                return $reflectionClass->newInstance($array);
+            }
+        }
+
+        // Check if it's ArrayObject itself with item specification
+        if ($className === ArrayObject::class) {
             $inputAttribute = $inputAttributes[0]->newInstance();
             if ($inputAttribute->item !== null) {
                 $array = $this->createArrayOfInputs($paramName, $query, $inputAttribute->item);
