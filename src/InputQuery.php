@@ -12,6 +12,7 @@ use Ray\Di\Di\Qualifier;
 use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -99,8 +100,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
     {
@@ -119,8 +120,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
@@ -145,8 +146,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
@@ -174,8 +175,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<\ReflectionAttribute<Input>> $inputAttributes
+     * @param array<string, mixed>              $query
+     * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
     {
@@ -203,6 +204,7 @@ final class InputQuery implements InputQueryInterface
         assert(class_exists($className));
         /** @var class-string $className */
         $reflectionClass = new ReflectionClass($className);
+
         return $reflectionClass->newInstance($array);
     }
 
@@ -361,5 +363,4 @@ final class InputQuery implements InputQueryInterface
 
         return $result;
     }
-
 }
