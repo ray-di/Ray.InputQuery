@@ -1,12 +1,16 @@
 # Ray.InputQuery
 
-Type-safe input object builder from query data.
+Structured input objects from HTTP.
 
 ## Installation
 
 ```bash
 composer require ray/input-query
 ```
+
+## Documentation
+
+Comprehensive documentation including design philosophy, AI prompts for development assistance, and sample data examples can be found in the [docs/](docs/) directory.
 
 ## Usage
 
