@@ -99,11 +99,11 @@ echo $user->email; // john@example.com
 // Method argument resolution from $_POST
 $method = new ReflectionMethod(UserController::class, 'register');
 $args = $inputQuery->getArguments($method, $_POST);
-$controller->register(...$args);
+$result = $method->invokeArgs($controller, $args);
 
 // Or with PSR-7 Request
 $args = $inputQuery->getArguments($method, $request->getParsedBody());
-$controller->register(...$args);
+$result = $method->invokeArgs($controller, $args);
 ```
 
 ### Nested Objects
@@ -195,8 +195,8 @@ $data = [
     ]
 ];
 
-$args = $inputQuery->getArguments($method, $data);
-// $args[0] will be an array of UserInput objects
+$result = $method->invokeArgs($controller, $inputQuery->getArguments($method, $data));
+// Arguments automatically resolved as UserInput objects
 ```
 
 #### Simple array values (e.g., checkboxes)
