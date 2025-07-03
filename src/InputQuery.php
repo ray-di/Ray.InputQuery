@@ -323,4 +323,5 @@ final class InputQuery implements InputQueryInterface
 
         return $result;
     }
+
 }
