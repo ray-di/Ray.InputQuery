@@ -6,6 +6,7 @@ namespace Ray\InputQuery;
 
 use ArrayObject;
 use InvalidArgumentException;
+use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use Override;
 use Ray\Di\Di\Named;
@@ -13,6 +14,7 @@ use Ray\Di\Di\Qualifier;
 use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -95,14 +97,51 @@ final class InputQuery implements InputQueryInterface
     private function resolveParameter(ReflectionParameter $param, array $query): mixed
     {
         $inputAttributes = $param->getAttributes(Input::class);
+        $inputFileAttributes = $param->getAttributes(InputFile::class);
         $hasInputAttribute = ! empty($inputAttributes);
+        $hasInputFileAttribute = ! empty($inputFileAttributes);
 
-        if (! $hasInputAttribute) {
-            // No #[Input] attribute - get from DI
+        if (! $hasInputAttribute && ! $hasInputFileAttribute) {
+            // No #[Input] or #[InputFile] attribute - get from DI
             return $this->resolveFromDI($param);
         }
 
+        if ($hasInputFileAttribute) {
+            return $this->resolveInputFileParameter($param, $query, $inputFileAttributes);
+        }
+
         return $this->resolveInputParameter($param, $query, $inputAttributes);
+    }
+
+    /**
+     * @param array<string, mixed>                  $query
+     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     */
+    private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
+    {
+        $type = $param->getType();
+
+        // Handle union types (e.g., FileUpload|ErrorFileUpload)
+        if ($type instanceof ReflectionUnionType) {
+            return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
+        }
+
+        // Handle single FileUpload type
+        if ($type instanceof ReflectionNamedType) {
+            if ($this->isFileUploadType($type->getName())) {
+                return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
+            }
+
+            // Handle array of FileUpload
+            if ($type->getName() === 'array') {
+                $paramName = $param->getName();
+
+                return $this->createArrayOfFileUploadsWithValidation($paramName, $query, $inputFileAttributes);
+            }
+        }
+
+        // Fallback to regular file upload handling
+        return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
     }
 
     /**
@@ -289,15 +328,26 @@ final class InputQuery implements InputQueryInterface
 
     private function getDefaultValue(ReflectionParameter $param): mixed
     {
+        return $this->getDefaultValueOrThrow(
+            $param,
+            sprintf('Required parameter "%s" is missing and has no default value', $param->getName()),
+        );
+    }
+
+    /**
+     * Get the default value of a parameter or throw an exception with a custom message
+     */
+    private function getDefaultValueOrThrow(ReflectionParameter $param, string $message): mixed
+    {
+        if ($param->allowsNull()) {
+            return null;
+        }
+
         if ($param->isDefaultValueAvailable()) {
             return $param->getDefaultValue();
         }
 
-        // Required parameter without default value
-        throw new InvalidArgumentException(sprintf(
-            'Required parameter "%s" is missing and has no default value',
-            $param->getName(),
-        ));
+        throw new InvalidArgumentException($message);
     }
 
     private function convertScalar(mixed $value, ReflectionNamedType $type): mixed
@@ -404,8 +454,47 @@ final class InputQuery implements InputQueryInterface
             || is_subclass_of($className, FileUpload::class);
     }
 
-    /** @param array<string, mixed> $query */
-    private function resolveFileUpload(ReflectionParameter $param, array $query): mixed
+    /**
+     * @param array<string, mixed>                  $query
+     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     */
+    private function resolveFileUploadWithValidation(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
+    {
+        $validationOptions = $this->extractValidationOptions($inputFileAttributes);
+
+        return $this->resolveFileUpload($param, $query, $validationOptions);
+    }
+
+    /**
+     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private function extractValidationOptions(array $inputFileAttributes): array
+    {
+        if (empty($inputFileAttributes)) {
+            return [];
+        }
+
+        $inputFile = $inputFileAttributes[0]->newInstance();
+        $options = [];
+
+        if ($inputFile->maxSize !== null) {
+            $options['maxSize'] = $inputFile->maxSize;
+        }
+
+        if ($inputFile->allowedTypes !== null) {
+            $options['allowedTypes'] = $inputFile->allowedTypes;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $validationOptions
+     */
+    private function resolveFileUpload(ReflectionParameter $param, array $query, array $validationOptions = []): mixed
     {
         $paramName = $param->getName();
 
@@ -428,7 +517,7 @@ final class InputQuery implements InputQueryInterface
                 throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
             }
 
-            return FileUpload::create($fileData);
+            return FileUpload::create($fileData, $validationOptions);
         }
 
         // No file found
@@ -440,11 +529,25 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
+     * @param array<string, mixed>                  $query
+     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
      *
      * @return array<array-key, mixed>
      */
-    private function createArrayOfFileUploads(string $paramName, array $query): array
+    private function createArrayOfFileUploadsWithValidation(string $paramName, array $query, array $inputFileAttributes): array
+    {
+        $validationOptions = $this->extractValidationOptions($inputFileAttributes);
+
+        return $this->createArrayOfFileUploads($paramName, $query, $validationOptions);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $validationOptions
+     *
+     * @return array<array-key, mixed>
+     */
+    private function createArrayOfFileUploads(string $paramName, array $query, array $validationOptions = []): array
     {
         // Check if FileUpload array is provided in query (for testing)
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
@@ -461,7 +564,7 @@ final class InputQuery implements InputQueryInterface
 
         // Check if this is HTML multiple file upload format
         if (isset($arrayData['name']) && is_array($arrayData['name'])) {
-            return $this->convertMultipleFileFormat($arrayData);
+            return $this->convertMultipleFileFormat($arrayData, $validationOptions);
         }
 
         // Handle regular array format (each element is a complete file array)
@@ -469,13 +572,12 @@ final class InputQuery implements InputQueryInterface
 
         /** @var array<string, mixed> $fileData */
         foreach ($arrayData as $key => $fileData) {
-
             // Skip files that weren't uploaded
             if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
 
-            $result[$key] = FileUpload::create($fileData);
+            $result[$key] = FileUpload::create($fileData, $validationOptions);
         }
 
         return $result;
@@ -485,10 +587,11 @@ final class InputQuery implements InputQueryInterface
      * Convert HTML multiple file upload format to individual file arrays
      *
      * @param array<string, mixed> $multipleFileData
+     * @param array<string, mixed> $validationOptions
      *
      * @return array<array-key, mixed>
      */
-    private function convertMultipleFileFormat(array $multipleFileData): array
+    private function convertMultipleFileFormat(array $multipleFileData, array $validationOptions = []): array
     {
         if (! isset($multipleFileData['name']) || ! is_array($multipleFileData['name'])) {
             return [];
@@ -511,16 +614,27 @@ final class InputQuery implements InputQueryInterface
                 continue;
             }
 
-            /** @var array<string, mixed> $fileData */
-            $result[$i] = FileUpload::create($fileData);
+            $result[$i] = FileUpload::create($fileData, $validationOptions);
         }
 
         return $result;
     }
 
     /**
-     * @param array<string, mixed> $query
+     * Validate if the value is a valid FileUpload type
      */
+    private function validateFileUploadValue(mixed $value): bool
+    {
+        if (! class_exists('Koriym\FileUpload\FileUpload')) {
+            return false;
+        }
+
+        return $value instanceof FileUpload
+            || (class_exists('Koriym\FileUpload\ErrorFileUpload') && $value instanceof ErrorFileUpload)
+            || $value === null;
+    }
+
+    /** @param array<string, mixed> $query */
     private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
         // Check if any of the union types is a FileUpload type
@@ -528,7 +642,10 @@ final class InputQuery implements InputQueryInterface
             /** @var ReflectionNamedType $unionType */
             if ($this->isFileUploadType($unionType->getName())) {
                 // This is a FileUpload union, handle as file upload
-                return $this->resolveFileUpload($param, $query);
+                $inputFileAttrs = $param->getAttributes(InputFile::class);
+                $validationOptions = $this->extractValidationOptions($inputFileAttrs);
+
+                return $this->resolveFileUpload($param, $query, $validationOptions);
             }
         }
 
