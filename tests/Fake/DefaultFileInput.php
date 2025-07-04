@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Ray\InputQuery\Fake;
+
+use Koriym\FileUpload\FileUpload;
+use Koriym\FileUpload\ErrorFileUpload;
+use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
+
+final class DefaultFileInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[InputFile] public readonly FileUpload|ErrorFileUpload|null $avatar = null,
+    ) {
+    }
+}
