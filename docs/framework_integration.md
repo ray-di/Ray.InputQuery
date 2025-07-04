@@ -256,13 +256,18 @@ class User extends ResourceObject
 // protected/controllers/UserController.php
 <?php
 
+use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\Attribute\InputQuery;
+use Ray\Di\Injector;
+
 class UserController extends CController
 {
     public function actionCreate()
     {
         if (Yii::app()->request->isPostRequest) {
-            $injector = new Ray\Di\Injector();
-            $inputQuery = new Ray\InputQuery\InputQuery($injector);
+            $injector = new Injector();
+            $inputQuery = new Query($injector);
             
             $method = new ReflectionMethod($this, 'handleUserCreation');
             $postData = array_merge($_POST, $_FILES);
@@ -275,9 +280,9 @@ class UserController extends CController
     }
     
     public function handleUserCreation(
-        #[Ray\InputQuery\Attribute\Input] string $name,
-        #[Ray\InputQuery\Attribute\Input] string $email,
-        #[Ray\InputQuery\Attribute\InputFile(
+        #[Input] string $name,
+        #[Input] string $email,
+        #[InputFile(
             maxSize: 5 * 1024 * 1024,
             allowedTypes: ['image/jpeg', 'image/png']
         )] Koriym\FileUpload\FileUpload|Koriym\FileUpload\ErrorFileUpload $avatar,
