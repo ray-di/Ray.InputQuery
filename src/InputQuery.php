@@ -59,6 +59,12 @@ use const UPLOAD_ERR_NO_FILE;
  * @psalm-type FileErrorArray = array<int, int>
  * @psalm-type MultipleFileData = array{name: FileNameArray, type: FileTypeArray, size: FileSizeArray, tmp_name: FileTmpNameArray, error: FileErrorArray}
  * @psalm-type ValidationOptions = array{maxSize?: int<1, max>, allowedTypes?: list<string>}
+ * @psalm-type FileUploadArray = array<array-key, FileUpload|ErrorFileUpload>
+ * @psalm-type NestedQuery = array<string, mixed>
+ * @psalm-type InputArray = array<int, mixed>
+ * @psalm-type ParameterValue = scalar|array<array-key, mixed>|object|null
+ * @psalm-type InputAttributes = array<ReflectionAttribute<Input>>
+ * @psalm-type InputFileAttributes = array<ReflectionAttribute<InputFile>>
  */
 final class InputQuery implements InputQueryInterface
 {
@@ -124,8 +130,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                                 $query
-     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     * @param Query               $query
+     * @param InputFileAttributes $inputFileAttributes
      */
     private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
     {
@@ -155,8 +161,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                             $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
     {
@@ -180,8 +186,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                             $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
@@ -213,8 +219,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                             $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
@@ -249,8 +255,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                             $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
     {
@@ -472,8 +478,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                                 $query
-     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     * @param Query               $query
+     * @param InputFileAttributes $inputFileAttributes
      */
     private function resolveFileUploadWithValidation(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
     {
@@ -483,7 +489,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     * @param InputFileAttributes $inputFileAttributes
      *
      * @return ValidationOptions
      */
@@ -546,10 +552,10 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param Query                                 $query
-     * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
+     * @param Query               $query
+     * @param InputFileAttributes $inputFileAttributes
      *
-     * @return array<array-key, mixed>
+     * @return FileUploadArray
      */
     private function createArrayOfFileUploadsWithValidation(string $paramName, array $query, array $inputFileAttributes): array
     {
@@ -562,13 +568,16 @@ final class InputQuery implements InputQueryInterface
      * @param Query             $query
      * @param ValidationOptions $validationOptions
      *
-     * @return array<array-key, mixed>
+     * @return FileUploadArray
      */
     private function createArrayOfFileUploads(string $paramName, array $query, array $validationOptions = []): array
     {
         // Check if FileUpload array is provided in query (for testing)
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
-            return $query[$paramName];
+            /** @var FileUploadArray $result */
+            $result = $query[$paramName];
+
+            return $result;
         }
 
         // Try to create from $_FILES
@@ -607,7 +616,7 @@ final class InputQuery implements InputQueryInterface
      * @param MultipleFileData  $multipleFileData
      * @param ValidationOptions $validationOptions
      *
-     * @return array<array-key, mixed>
+     * @return FileUploadArray
      */
     private function convertMultipleFileFormat(array $multipleFileData, array $validationOptions = []): array
     {
