@@ -6,7 +6,6 @@ namespace Ray\InputQuery;
 
 use ArrayObject;
 use InvalidArgumentException;
-use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use Override;
 use Ray\Di\Di\Named;
@@ -49,6 +48,15 @@ use const UPLOAD_ERR_NO_FILE;
 /**
  * @template T of object
  * @implements InputQueryInterface<T>
+ * @psalm-type Query = array<string, mixed>
+ * @psalm-type FileData = array{name: string, type: string, size: int, tmp_name: string, error: int}
+ * @psalm-type FileNameArray = array<int, string>
+ * @psalm-type FileTypeArray = array<int, string>
+ * @psalm-type FileSizeArray = array<int, int>
+ * @psalm-type FileTmpNameArray = array<int, string>
+ * @psalm-type FileErrorArray = array<int, int>
+ * @psalm-type MultipleFileData = array{name: FileNameArray, type: FileTypeArray, size: FileSizeArray, tmp_name: FileTmpNameArray, error: FileErrorArray}
+ * @psalm-type ValidationOptions = array{maxSize?: int<1, max>, allowedTypes?: list<string>}
  */
 final class InputQuery implements InputQueryInterface
 {
@@ -73,8 +81,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param class-string<T>      $class
-     * @param array<string, mixed> $query
+     * @param class-string<T> $class
+     * @param Query           $query
      *
      * @return T
      */
@@ -93,7 +101,7 @@ final class InputQuery implements InputQueryInterface
         return $reflection->newInstanceArgs($args);
     }
 
-    /** @param array<string, mixed> $query */
+    /** @param Query $query */
     private function resolveParameter(ReflectionParameter $param, array $query): mixed
     {
         $inputAttributes = $param->getAttributes(Input::class);
@@ -114,7 +122,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>                  $query
+     * @param Query                                 $query
      * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
      */
     private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
@@ -145,7 +153,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
+     * @param Query                             $query
      * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
@@ -170,7 +178,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
+     * @param Query                             $query
      * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
@@ -201,7 +209,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
+     * @param Query                             $query
      * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
@@ -235,7 +243,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
+     * @param Query                             $query
      * @param array<ReflectionAttribute<Input>> $inputAttributes
      */
     private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
@@ -366,9 +374,9 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
+     * @param Query $query
      *
-     * @return array<string, mixed>
+     * @return Query
      */
     private function extractNestedQuery(string $paramName, array $query): array
     {
@@ -403,8 +411,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param class-string<T>      $itemClass
+     * @param Query           $query
+     * @param class-string<T> $itemClass
      *
      * @return array<array-key, T>
      */
@@ -455,7 +463,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>                  $query
+     * @param Query                                 $query
      * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
      */
     private function resolveFileUploadWithValidation(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
@@ -468,7 +476,7 @@ final class InputQuery implements InputQueryInterface
     /**
      * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
      *
-     * @return array<string, mixed>
+     * @return ValidationOptions
      */
     private function extractValidationOptions(array $inputFileAttributes): array
     {
@@ -479,7 +487,7 @@ final class InputQuery implements InputQueryInterface
         $inputFile = $inputFileAttributes[0]->newInstance();
         $options = [];
 
-        if ($inputFile->maxSize !== null) {
+        if ($inputFile->maxSize !== null && $inputFile->maxSize > 0) {
             $options['maxSize'] = $inputFile->maxSize;
         }
 
@@ -491,8 +499,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<string, mixed> $validationOptions
+     * @param Query             $query
+     * @param ValidationOptions $validationOptions
      */
     private function resolveFileUpload(ReflectionParameter $param, array $query, array $validationOptions = []): mixed
     {
@@ -505,11 +513,11 @@ final class InputQuery implements InputQueryInterface
 
         // Try to create from $_FILES
         if (isset($_FILES[$paramName])) {
-            /** @var array<string, mixed> $fileData */
+            /** @var FileData $fileData */
             $fileData = $_FILES[$paramName];
 
             // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
-            if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
+            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
                     return $param->getDefaultValue();
                 }
@@ -529,7 +537,7 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>                  $query
+     * @param Query                                 $query
      * @param array<ReflectionAttribute<InputFile>> $inputFileAttributes
      *
      * @return array<array-key, mixed>
@@ -542,8 +550,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param array<string, mixed> $validationOptions
+     * @param Query             $query
+     * @param ValidationOptions $validationOptions
      *
      * @return array<array-key, mixed>
      */
@@ -564,16 +572,17 @@ final class InputQuery implements InputQueryInterface
 
         // Check if this is HTML multiple file upload format
         if (isset($arrayData['name']) && is_array($arrayData['name'])) {
+            /** @var MultipleFileData $arrayData */
             return $this->convertMultipleFileFormat($arrayData, $validationOptions);
         }
 
         // Handle regular array format (each element is a complete file array)
         $result = [];
 
-        /** @var array<string, mixed> $fileData */
+        /** @var FileData $fileData */
         foreach ($arrayData as $key => $fileData) {
             // Skip files that weren't uploaded
-            if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_NO_FILE) {
+            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
 
@@ -586,16 +595,14 @@ final class InputQuery implements InputQueryInterface
     /**
      * Convert HTML multiple file upload format to individual file arrays
      *
-     * @param array<string, mixed> $multipleFileData
-     * @param array<string, mixed> $validationOptions
+     * @param MultipleFileData  $multipleFileData
+     * @param ValidationOptions $validationOptions
      *
      * @return array<array-key, mixed>
      */
     private function convertMultipleFileFormat(array $multipleFileData, array $validationOptions = []): array
     {
-        if (! isset($multipleFileData['name']) || ! is_array($multipleFileData['name'])) {
-            return [];
-        }
+        /** @var MultipleFileData $multipleFileData */
 
         $result = [];
         $fileCount = count($multipleFileData['name']);
@@ -603,10 +610,10 @@ final class InputQuery implements InputQueryInterface
         for ($i = 0; $i < $fileCount; $i++) {
             $fileData = [
                 'name' => $multipleFileData['name'][$i] ?? '',
-                'type' => isset($multipleFileData['type']) && is_array($multipleFileData['type']) ? ($multipleFileData['type'][$i] ?? '') : '',
-                'size' => isset($multipleFileData['size']) && is_array($multipleFileData['size']) ? ($multipleFileData['size'][$i] ?? 0) : 0,
-                'tmp_name' => isset($multipleFileData['tmp_name']) && is_array($multipleFileData['tmp_name']) ? ($multipleFileData['tmp_name'][$i] ?? '') : '',
-                'error' => isset($multipleFileData['error']) && is_array($multipleFileData['error']) ? ($multipleFileData['error'][$i] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE,
+                'type' => $multipleFileData['type'][$i] ?? '',
+                'size' => $multipleFileData['size'][$i] ?? 0,
+                'tmp_name' => $multipleFileData['tmp_name'][$i] ?? '',
+                'error' => $multipleFileData['error'][$i] ?? UPLOAD_ERR_NO_FILE,
             ];
 
             // Skip files that weren't uploaded
@@ -620,21 +627,7 @@ final class InputQuery implements InputQueryInterface
         return $result;
     }
 
-    /**
-     * Validate if the value is a valid FileUpload type
-     */
-    private function validateFileUploadValue(mixed $value): bool
-    {
-        if (! class_exists('Koriym\FileUpload\FileUpload')) {
-            return false;
-        }
-
-        return $value instanceof FileUpload
-            || (class_exists('Koriym\FileUpload\ErrorFileUpload') && $value instanceof ErrorFileUpload)
-            || $value === null;
-    }
-
-    /** @param array<string, mixed> $query */
+    /** @param Query $query */
     private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
         // Check if any of the union types is a FileUpload type
