@@ -13,6 +13,9 @@ final class InputFile
      * @param int|null          $maxSize      Maximum file size in bytes
      * @param list<string>|null $allowedTypes Allowed MIME types
      * @param bool              $required     Whether the file is required
+     *
+     * @SuppressWarnings("PHPMD.BooleanArgumentFlag") - Boolean flags are acceptable in attribute/configuration classes,
+     *                                                      as they represent configuration options, not behavioral flags
      */
     public function __construct(
         public readonly int|null $maxSize = null,

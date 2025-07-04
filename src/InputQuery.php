@@ -6,6 +6,7 @@ namespace Ray\InputQuery;
 
 use ArrayObject;
 use InvalidArgumentException;
+use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use Override;
 use Ray\Di\Di\Named;
@@ -14,6 +15,7 @@ use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\Exception\InvalidFileUploadAttributeException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -193,7 +195,9 @@ final class InputQuery implements InputQueryInterface
 
                 // Check if array items are FileUpload types
                 if ($this->isFileUploadType($itemClass)) {
-                    return $this->createArrayOfFileUploads($paramName, $query);
+                    throw new InvalidFileUploadAttributeException(
+                        sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
+                    );
                 }
 
                 /** @var class-string<T> $itemClass */
@@ -217,9 +221,11 @@ final class InputQuery implements InputQueryInterface
         $paramName = $param->getName();
         $className = $type->getName();
 
-        // Check for FileUpload types
+        // Check for FileUpload types - must use #[InputFile] not #[Input]
         if ($this->isFileUploadType($className)) {
-            return $this->resolveFileUpload($param, $query);
+            throw new InvalidFileUploadAttributeException(
+                sprintf('FileUpload parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
+            );
         }
 
         // Check for ArrayObject types with item specification
@@ -453,12 +459,15 @@ final class InputQuery implements InputQueryInterface
 
     private function isFileUploadType(string $className): bool
     {
-        if (! class_exists('Koriym\FileUpload\FileUpload')) {
+        // @codeCoverageIgnoreStart
+        if (! class_exists(FileUpload::class)) {
             return false;
         }
 
-        return $className === 'Koriym\FileUpload\FileUpload'
-            || $className === 'Koriym\FileUpload\ErrorFileUpload'
+        // @codeCoverageIgnoreEnd
+
+        return $className === FileUpload::class
+            || $className === ErrorFileUpload::class
             || is_subclass_of($className, FileUpload::class);
     }
 
@@ -519,7 +528,7 @@ final class InputQuery implements InputQueryInterface
             // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
             if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
                 if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
-                    return $param->getDefaultValue();
+                    return $this->getDefaultValueOrThrow($param, "Required file parameter '{$paramName}' is missing");
                 }
 
                 throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
@@ -530,7 +539,7 @@ final class InputQuery implements InputQueryInterface
 
         // No file found
         if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
-            return $param->getDefaultValue();
+            return $this->getDefaultValueOrThrow($param, "Required file parameter '{$paramName}' is missing");
         }
 
         throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
