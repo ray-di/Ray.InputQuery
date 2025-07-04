@@ -117,6 +117,15 @@ final class InputQuery implements InputQueryInterface
         $hasInputAttribute = ! empty($inputAttributes);
         $hasInputFileAttribute = ! empty($inputFileAttributes);
 
+        if ($hasInputAttribute && $hasInputFileAttribute) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Parameter $%s cannot have both #[Input] and #[InputFile] attributes at the same time.',
+                    $param->getName(),
+                ),
+            );
+        }
+
         if (! $hasInputAttribute && ! $hasInputFileAttribute) {
             // No #[Input] or #[InputFile] attribute - get from DI
             return $this->resolveFromDI($param);

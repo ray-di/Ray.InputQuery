@@ -51,6 +51,13 @@ final class FileUploadFactory
      */
     public function create(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
     {
+        // Validate that only one InputFile attribute is present
+        if (count($inputFileAttributes) > 1) {
+            throw new InvalidArgumentException(
+                'Only one #[InputFile] attribute is allowed per parameter',
+            );
+        }
+
         $type = $param->getType();
 
         // Handle union types (e.g., FileUpload|ErrorFileUpload|null)
@@ -137,10 +144,6 @@ final class FileUploadFactory
      */
     public function isFileUploadType(string $className): bool
     {
-        if ($className === 'FileUpload' || $className === 'ErrorFileUpload') {
-            return true;
-        }
-
         if ($className === FileUpload::class || $className === ErrorFileUpload::class) {
             return true;
         }

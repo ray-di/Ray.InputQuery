@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
+use InvalidArgumentException;
 use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use PHPUnit\Framework\TestCase;
 use Ray\Di\Injector;
+use Ray\InputQuery\Fake\ConflictingAttributesInput;
 use Ray\InputQuery\Fake\InputFileExtensionValidationInput;
 use Ray\InputQuery\Fake\InputFileInput;
 use Ray\InputQuery\Fake\InputFileValidationInput;
 use Ray\InputQuery\Fake\InputFileWithOptionsInput;
+use Ray\InputQuery\Fake\MultipleInputFileAttributesInput;
 
 use const UPLOAD_ERR_OK;
 
@@ -196,6 +199,24 @@ final class InputFileTest extends TestCase
         // This should fail because pathinfo() is case-sensitive
         $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
         $this->assertStringContainsString('File extension JPG is not allowed', $input->avatar->message);
+    }
+
+    public function testMultipleInputFileAttributesThrowsException(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Only one #[InputFile] attribute is allowed per parameter');
+
+        $query = ['name' => 'test user'];
+        $this->inputQuery->create(MultipleInputFileAttributesInput::class, $query);
+    }
+
+    public function testConflictingInputAndInputFileAttributesThrowsException(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Parameter $conflictingParam cannot have both #[Input] and #[InputFile] attributes at the same time.');
+
+        $query = ['name' => 'test user'];
+        $this->inputQuery->create(ConflictingAttributesInput::class, $query);
     }
 
     protected function tearDown(): void
