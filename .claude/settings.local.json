@@ -7,7 +7,13 @@
       "Bash(./vendor/bin/phpunit:*)",
       "Bash(./vendor/bin/phpmd:*)",
       "Bash(vendor/bin/phpunit:*)",
-      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text --coverage-filter src/)"
+      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text --coverage-filter src/)",
+      "Bash(find:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text --coverage-filter=src/)",
+      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text --coverage-filter=src/ --colors=never)",
+      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html coverage-report --coverage-filter=src/)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }
