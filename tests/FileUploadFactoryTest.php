@@ -189,7 +189,6 @@ final class FileUploadFactoryTest extends TestCase
         $this->factory->create($param, [], $inputFileAttributes);
     }
 
-
     /**
      * Dummy methods for reflection testing
      */
@@ -216,5 +215,4 @@ final class FileUploadFactoryTest extends TestCase
     public function dummyMethodForInvalidParameterType(string $invalidParam): void
     {
     }
-
 }

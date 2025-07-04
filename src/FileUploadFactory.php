@@ -160,7 +160,11 @@ final class FileUploadFactory
 
         foreach ($unionTypes as $unionType) {
             if (! $unionType instanceof ReflectionNamedType) {
+                // @codeCoverageIgnoreStart
+                // This case occurs with PHP 8.2+ intersection types in union types like (A&B)|C
+                // Cannot be tested in PHP < 8.2 due to syntax errors
                 return false;
+                // @codeCoverageIgnoreEnd
             }
 
             $typeName = $unionType->getName();
