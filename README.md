@@ -113,7 +113,7 @@ $method = new ReflectionMethod(UserController::class, 'register');
 $args = $inputQuery->getArguments($method, $_POST);
 $result = $method->invokeArgs($controller, $args);
 
-// Or with PSR-7 Requestcom
+ // Or with PSR-7 Request
 $args = $inputQuery->getArguments($method, $request->getParsedBody());
 $result = $method->invokeArgs($controller, $args);
 ```
