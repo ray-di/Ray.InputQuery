@@ -122,27 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             switch ($_POST['action']) {
                 case 'profile':
-                    // 1. Create InputQuery with DI container
                     $inputQuery = new InputQuery(new Injector());
-                    
-                    // 2. Get method reflection to analyze parameter types and attributes
                     $method = new ReflectionMethod($controller, 'handleUserProfile');
-                    
-                    // 3. Resolve all method arguments: 
-                    //    - #[Input] scalar parameters from $_POST
-                    //    - #[Input] FileUpload parameters from $_FILES (auto-created)
-                    //    - Non-#[Input] parameters from DI container
                     $args = $inputQuery->getArguments($method, $_POST);
-                    
-                    // 4. Call method with type-safe, structured arguments
-                    $result = $controller->handleUserProfile(...$args);
+                    $result = $method->invokeArgs($controller, $args);
                     break;
                     
                 case 'gallery':
+                    // Using invokeArgs() method
                     $inputQuery = new InputQuery(new Injector());
                     $method = new ReflectionMethod($controller, 'handleGallery');
                     $args = $inputQuery->getArguments($method, $_POST);
-                    $result = $controller->handleGallery(...$args);
+                    $result = $method->invokeArgs($controller, $args);
                     break;
             }
         } catch (Exception $e) {
@@ -408,15 +399,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </ul>
         
         <div class="code-example">
-            <strong>Usage:</strong>
-            <pre><code>// In production, FileUpload library handles environment differences
-$query = array_merge($_POST, [
-    'avatar' => FileUpload::create($_FILES['avatar']),
-    'banner' => isset($_FILES['banner']) ? FileUpload::create($_FILES['banner']) : null
-]);
-
+            <strong>Two Usage Patterns:</strong>
+            <pre><code>// Method 1: getArguments() + spread operator
 $inputQuery = new InputQuery(new Injector());
-$input = $inputQuery->create(UserProfileInput::class, $query);</code></pre>
+$method = new ReflectionMethod($controller, 'handleUserProfile');
+$args = $inputQuery->getArguments($method, $_POST);
+$result = $controller->handleUserProfile(...$args);
+
+// Method 2: invokeArgs() for more dynamic calls
+$result = $method->invokeArgs($controller, $args);
+
+// Method 3: Direct object creation
+$input = $inputQuery->create(UserProfileInput::class, $_POST);</code></pre>
         </div>
     </div>
 </body>
