@@ -1,5 +1,8 @@
 {
-    "symbol-whitelist" : [],
+    "symbol-whitelist" : [
+        "Koriym\\FileUpload\\FileUpload",
+        "Koriym\\FileUpload\\ErrorFileUpload"
+    ],
     "php-core-extensions" : [
         "Core",
         "date",
