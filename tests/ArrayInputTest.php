@@ -20,7 +20,7 @@ final class ArrayInputTest extends TestCase
     protected function setUp(): void
     {
         $injector = new Injector();
-        $this->inputQuery = new InputQuery($injector);
+        $this->inputQuery = new InputQuery($injector, new FileUploadFactory());
     }
 
     public function testArrayOfInputObjects(): void

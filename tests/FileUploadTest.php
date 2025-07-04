@@ -20,7 +20,7 @@ class FileUploadTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->inputQuery = new InputQuery(new Injector());
+        $this->inputQuery = new InputQuery(new Injector(), new FileUploadFactory());
     }
 
     public function testFileUploadIntegration(): void

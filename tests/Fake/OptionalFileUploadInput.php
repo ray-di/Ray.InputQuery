@@ -7,12 +7,13 @@ namespace Ray\InputQuery\Fake;
 use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
 
 final class OptionalFileUploadInput
 {
     public function __construct(
         #[Input] public readonly string $name,
-        #[Input] public readonly FileUpload|ErrorFileUpload|null $banner = null,
+        #[InputFile] public readonly FileUpload|ErrorFileUpload|null $banner = null,
     ) {
     }
 }
