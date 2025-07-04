@@ -62,6 +62,14 @@ Then visit http://localhost:8080 in your browser.
 
 Comprehensive documentation including design philosophy, AI prompts for development assistance, and sample data examples can be found in the [docs/](docs/) directory.
 
+### Framework Integration
+
+For framework-specific integration examples, see the **[Framework Integration Guide](docs/framework_integration.md)** which covers:
+
+- Laravel, Symfony, CakePHP, Yii Framework 1.x, BEAR.Sunday, and Slim Framework
+- Three usage patterns (Reflection, Direct Object Creation, Spread Operator)
+- Testing examples and best practices
+
 ## Usage
 
 Ray.InputQuery converts flat query data into typed PHP objects automatically.
@@ -332,26 +340,8 @@ final class UserProfileInput
     ) {}
 }
 
-// Method usage example
-class UserController
-{
-    public function updateProfile(UserProfileInput $input): void
-    {
-        // Handle avatar upload
-        if ($input->avatar instanceof FileUpload) {
-            $avatarPath = $this->saveFile($input->avatar, 'avatars/');
-            $this->userService->updateAvatar($input->name, $avatarPath);
-        } elseif ($input->avatar instanceof ErrorFileUpload) {
-            throw new InvalidArgumentException($input->avatar->message);
-        }
-        
-        // Handle optional banner
-        if ($input->banner instanceof FileUpload) {
-            $bannerPath = $this->saveFile($input->banner, 'banners/');
-            $this->userService->updateBanner($input->name, $bannerPath);
-        }
-    }
-}
+// Method usage example - Direct attribute approach
+RE}
 ```
 
 ### Test-Friendly Design
