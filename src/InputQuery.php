@@ -6,17 +6,22 @@ namespace Ray\InputQuery;
 
 use ArrayObject;
 use InvalidArgumentException;
+use Koriym\FileUpload\ErrorFileUpload;
+use Koriym\FileUpload\FileUpload;
 use Override;
 use Ray\Di\Di\Named;
 use Ray\Di\Di\Qualifier;
 use Ray\Di\Exception\Unbound;
 use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\Exception\InvalidFileUploadAttributeException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
+use ReflectionUnionType;
 
 use function array_key_exists;
 use function assert;
@@ -42,12 +47,30 @@ use function ucwords;
 /**
  * @template T of object
  * @implements InputQueryInterface<T>
+ * @psalm-import-type Query from InputQueryInterface
+ * @psalm-type FileData = array{name: string, type: string, size: int, tmp_name: string, error: int}
+ * @psalm-type FileNameArray = array<int, string>
+ * @psalm-type FileTypeArray = array<int, string>
+ * @psalm-type FileSizeArray = array<int, int>
+ * @psalm-type FileTmpNameArray = array<int, string>
+ * @psalm-type FileErrorArray = array<int, int>
+ * @psalm-type MultipleFileData = array{name: FileNameArray, type: FileTypeArray, size: FileSizeArray, tmp_name: FileTmpNameArray, error: FileErrorArray}
+ * @psalm-type ValidationOptions = array{maxSize?: int<1, max>, allowedTypes?: list<string>, allowedExtensions?: list<string>}
+ * @psalm-type FileUploadArray = array<array-key, FileUpload|ErrorFileUpload>
+ * @psalm-type NestedQuery = array<string, mixed>
+ * @psalm-type InputArray = array<int, mixed>
+ * @psalm-type ParameterValue = scalar|array<array-key, mixed>|object|null
+ * @psalm-type InputAttributes = array<ReflectionAttribute<Input>>
+ * @psalm-type InputFileAttributes = array<ReflectionAttribute<InputFile>>
  */
 final class InputQuery implements InputQueryInterface
 {
+    private FileUploadFactory $fileUploadFactory;
+
     public function __construct(
         private InjectorInterface $injector,
     ) {
+        $this->fileUploadFactory = new FileUploadFactory();
     }
 
     /**
@@ -66,8 +89,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param class-string<T>      $class
-     * @param array<string, mixed> $query
+     * @param class-string<T> $class
+     * @param Query           $query
      *
      * @return T
      */
@@ -86,28 +109,57 @@ final class InputQuery implements InputQueryInterface
         return $reflection->newInstanceArgs($args);
     }
 
-    /** @param array<string, mixed> $query */
+    /** @param Query $query */
     private function resolveParameter(ReflectionParameter $param, array $query): mixed
     {
         $inputAttributes = $param->getAttributes(Input::class);
+        $inputFileAttributes = $param->getAttributes(InputFile::class);
         $hasInputAttribute = ! empty($inputAttributes);
+        $hasInputFileAttribute = ! empty($inputFileAttributes);
 
-        if (! $hasInputAttribute) {
-            // No #[Input] attribute - get from DI
+        if ($hasInputAttribute && $hasInputFileAttribute) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Parameter $%s cannot have both #[Input] and #[InputFile] attributes at the same time.',
+                    $param->getName(),
+                ),
+            );
+        }
+
+        if (! $hasInputAttribute && ! $hasInputFileAttribute) {
+            // No #[Input] or #[InputFile] attribute - get from DI
             return $this->resolveFromDI($param);
+        }
+
+        if ($hasInputFileAttribute) {
+            return $this->resolveInputFileParameter($param, $query, $inputFileAttributes);
         }
 
         return $this->resolveInputParameter($param, $query, $inputAttributes);
     }
 
     /**
-     * @param array<string, mixed>              $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query               $query
+     * @param InputFileAttributes $inputFileAttributes
+     */
+    private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
+    {
+        return $this->fileUploadFactory->create($param, $query, $inputFileAttributes);
+    }
+
+    /**
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveInputParameter(ReflectionParameter $param, array $query, array $inputAttributes): mixed
     {
         $type = $param->getType();
         $paramName = $param->getName();
+
+        // Handle union types (e.g., FileUpload|ErrorFileUpload)
+        if ($type instanceof ReflectionUnionType) {
+            return $this->resolveUnionType($param, $query, $type);
+        }
 
         if (! $type instanceof ReflectionNamedType) {
             return $query[$paramName] ?? $this->getDefaultValue($param);
@@ -121,8 +173,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
@@ -133,6 +185,13 @@ final class InputQuery implements InputQueryInterface
             if ($inputAttribute->item !== null) {
                 assert(class_exists($inputAttribute->item));
                 $itemClass = $inputAttribute->item;
+
+                // Check if array items are FileUpload types
+                if ($this->fileUploadFactory->isFileUploadType($itemClass)) {
+                    throw new InvalidFileUploadAttributeException(
+                        sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
+                    );
+                }
 
                 /** @var class-string<T> $itemClass */
                 return $this->createArrayOfInputs($paramName, $query, $itemClass);
@@ -147,13 +206,20 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveObjectType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
         $paramName = $param->getName();
         $className = $type->getName();
+
+        // Check for FileUpload types - must use #[InputFile] not #[Input]
+        if ($this->fileUploadFactory->isFileUploadType($className)) {
+            throw new InvalidFileUploadAttributeException(
+                sprintf('FileUpload parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
+            );
+        }
 
         // Check for ArrayObject types with item specification
         $arrayObjectResult = $this->resolveArrayObjectType($paramName, $query, $inputAttributes, $className);
@@ -176,8 +242,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed>              $query
-     * @param array<ReflectionAttribute<Input>> $inputAttributes
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
      */
     private function resolveArrayObjectType(string $paramName, array $query, array $inputAttributes, string $className): mixed
     {
@@ -269,15 +335,26 @@ final class InputQuery implements InputQueryInterface
 
     private function getDefaultValue(ReflectionParameter $param): mixed
     {
+        return $this->getDefaultValueOrThrow(
+            $param,
+            sprintf('Required parameter "%s" is missing and has no default value', $param->getName()),
+        );
+    }
+
+    /**
+     * Get the default value of a parameter or throw an exception with a custom message
+     */
+    private function getDefaultValueOrThrow(ReflectionParameter $param, string $message): mixed
+    {
+        if ($param->allowsNull()) {
+            return null;
+        }
+
         if ($param->isDefaultValueAvailable()) {
             return $param->getDefaultValue();
         }
 
-        // Required parameter without default value
-        throw new InvalidArgumentException(sprintf(
-            'Required parameter "%s" is missing and has no default value',
-            $param->getName(),
-        ));
+        throw new InvalidArgumentException($message);
     }
 
     private function convertScalar(mixed $value, ReflectionNamedType $type): mixed
@@ -296,9 +373,9 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
+     * @param Query $query
      *
-     * @return array<string, mixed>
+     * @return Query
      */
     private function extractNestedQuery(string $paramName, array $query): array
     {
@@ -333,8 +410,8 @@ final class InputQuery implements InputQueryInterface
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @param class-string<T>      $itemClass
+     * @param Query           $query
+     * @param class-string<T> $itemClass
      *
      * @return array<array-key, T>
      */
@@ -371,5 +448,20 @@ final class InputQuery implements InputQueryInterface
         }
 
         return $result;
+    }
+
+    /** @param Query $query */
+    private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
+    {
+        // Check if this is a file upload union type, delegate to FileUploadFactory
+        $fileUploadResult = $this->fileUploadFactory->resolveFileUploadUnionType($param, $query, $type);
+        if ($fileUploadResult !== null) {
+            return $fileUploadResult;
+        }
+
+        // Not a FileUpload union type, handle as regular parameter
+        $paramName = $param->getName();
+
+        return $query[$paramName] ?? $this->getDefaultValue($param);
     }
 }

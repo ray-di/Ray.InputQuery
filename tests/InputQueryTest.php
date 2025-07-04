@@ -4,18 +4,29 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
+use ArrayObject;
 use InvalidArgumentException;
+use Koriym\FileUpload\FileUpload;
 use PHPUnit\Framework\TestCase;
 use Ray\Di\AbstractModule;
 use Ray\Di\Injector;
+use Ray\InputQuery\Exception\InvalidFileUploadAttributeException;
+use Ray\InputQuery\Fake\ArrayObjectController;
 use Ray\InputQuery\Fake\AuthorInput;
+use Ray\InputQuery\Fake\ComplexInputController;
 use Ray\InputQuery\Fake\DatabaseService;
+use Ray\InputQuery\Fake\DefaultFileInput;
 use Ray\InputQuery\Fake\DefaultValuesInput;
 use Ray\InputQuery\Fake\DITestController;
+use Ray\InputQuery\Fake\FileUploadController;
+use Ray\InputQuery\Fake\InputFileInput;
+use Ray\InputQuery\Fake\InvalidFileUploadController;
+use Ray\InputQuery\Fake\MixedFileController;
 use Ray\InputQuery\Fake\MixedInput;
 use Ray\InputQuery\Fake\NoConstructorInput;
 use Ray\InputQuery\Fake\NonInputParameterController;
 use Ray\InputQuery\Fake\NonNamedTypeController;
+use Ray\InputQuery\Fake\NullableFileInput;
 use Ray\InputQuery\Fake\NullableInput;
 use Ray\InputQuery\Fake\Primary;
 use Ray\InputQuery\Fake\ScalarInput;
@@ -24,18 +35,30 @@ use Ray\InputQuery\Fake\TestService;
 use Ray\InputQuery\Fake\TodoController;
 use Ray\InputQuery\Fake\TodoInput;
 use Ray\InputQuery\Fake\UnionTypeInput;
+use Ray\InputQuery\Fake\UserArrayObject;
 use Ray\InputQuery\Fake\UserInput;
 use ReflectionClass;
 use ReflectionMethod;
 
+use function array_values;
 use function assert;
+use function count;
+
+use const UPLOAD_ERR_NO_FILE;
+use const UPLOAD_ERR_OK;
 
 final class InputQueryTest extends TestCase
 {
     private InputQueryInterface $inputQuery;
 
+    /** @var array<string, mixed> */
+    private array $originalFiles;
+
     protected function setUp(): void
     {
+        // $_FILESの元の状態を保存
+        $this->originalFiles = $_FILES;
+
         $injector = new Injector(new class extends AbstractModule {
             protected function configure(): void
             {
@@ -55,6 +78,12 @@ final class InputQueryTest extends TestCase
             }
         });
         $this->inputQuery = new InputQuery($injector);
+    }
+
+    protected function tearDown(): void
+    {
+        // $_FILESを元の状態に復元
+        $_FILES = $this->originalFiles;
     }
 
     public function testCreateSimpleObject(): void
@@ -524,5 +553,755 @@ final class InputQueryTest extends TestCase
         $this->expectExceptionMessage('Parameter "service" of type "Ray\InputQuery\Fake\UnresolvableService:" is not bound in the injector.');
 
         $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testInvalidFileUploadAttributeException(): void
+    {
+        // Test #[Input] with FileUpload type should throw exception
+        $method = new ReflectionMethod(InvalidFileUploadController::class, 'uploadWithWrongAttribute');
+        $query = [];
+
+        $this->expectException(InvalidFileUploadAttributeException::class);
+        $this->expectExceptionMessage('FileUpload parameter "file" must use #[InputFile] attribute, not #[Input]');
+
+        $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testInvalidFileUploadArrayAttributeException(): void
+    {
+        // Test #[Input] with FileUpload array should throw exception
+        $method = new ReflectionMethod(InvalidFileUploadController::class, 'uploadArrayWithWrongAttribute');
+        $query = [];
+
+        $this->expectException(InvalidFileUploadAttributeException::class);
+        $this->expectExceptionMessage('FileUpload array parameter "files" must use #[InputFile] attribute, not #[Input]');
+
+        $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testUnionTypeWithoutInputAttribute(): void
+    {
+        // Test union type parameter without #[Input] should get default value
+        $method = new ReflectionMethod(ComplexInputController::class, 'processUnionTypeNoInput');
+        $query = [];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame('default', $args[0]);
+    }
+
+    public function testNullableParameterHandling(): void
+    {
+        // Test nullable parameter handling - should use default value without DI
+        $method = new ReflectionMethod(ComplexInputController::class, 'processNullableParam');
+        $query = [];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]); // nullable parameter gets null default
+    }
+
+    public function testMixedTypeParameter(): void
+    {
+        // Test parameter with no type hint
+        $method = new ReflectionMethod(ComplexInputController::class, 'processMixedType');
+        $query = ['data' => 'test-value'];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame('test-value', $args[0]);
+    }
+
+    public function testNestedObjectExtraction(): void
+    {
+        // Test nested query extraction patterns (user_name -> UserInput->name)
+        $method = new ReflectionMethod(ComplexInputController::class, 'processNestedExtraction');
+        $query = [
+            'user_name' => 'NestedUser',
+            'user_email' => 'nested@example.com',
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $userInput = $args[0];
+        $this->assertInstanceOf(UserInput::class, $userInput);
+        $this->assertSame('NestedUser', $userInput->name);
+        $this->assertSame('nested@example.com', $userInput->email);
+    }
+
+    public function testComplexArrayObjects(): void
+    {
+        // Test array of complex objects
+        $method = new ReflectionMethod(ComplexInputController::class, 'processComplexArray');
+        $query = [
+            'users' => [
+                ['name' => 'User1', 'email' => 'user1@example.com'],
+                ['name' => 'User2', 'email' => 'user2@example.com'],
+            ],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $users = $args[0];
+        $this->assertIsArray($users);
+        $this->assertCount(2, $users);
+
+        $this->assertInstanceOf(UserInput::class, $users[0]);
+        $this->assertSame('User1', $users[0]->name);
+        $this->assertSame('user1@example.com', $users[0]->email);
+
+        $this->assertInstanceOf(UserInput::class, $users[1]);
+        $this->assertSame('User2', $users[1]->name);
+        $this->assertSame('user2@example.com', $users[1]->email);
+    }
+
+    public function testScalarConversions(): void
+    {
+        // Test various scalar type conversions
+        $method = new ReflectionMethod(ComplexInputController::class, 'processScalarConversions');
+        $query = [
+            'text' => 'sample text',
+            'number' => '42',
+            'decimal' => '3.14',
+            'flag' => 'true',
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(4, $args);
+        $this->assertSame('sample text', $args[0]);
+        $this->assertSame(42, $args[1]);
+        $this->assertSame(3.14, $args[2]);
+        $this->assertTrue($args[3]);
+    }
+
+    public function testParameterDefaultFromReflection(): void
+    {
+        // Test getting default values from parameter reflection
+        $method = new ReflectionMethod(ComplexInputController::class, 'processUnionTypeNoInput');
+        $query = [];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame('default', $args[0]); // Uses parameter default value
+    }
+
+    public function testStringArrayProcessing(): void
+    {
+        // Test array processing without item type
+        $method = new ReflectionMethod(ComplexInputController::class, 'processStringArray');
+        $query = [
+            'items' => ['item1', 'item2', 'item3'],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertSame(['item1', 'item2', 'item3'], $args[0]);
+    }
+
+    public function testMixedInputAndNonInputParameters(): void
+    {
+        // Test method with both Input and non-Input parameters
+        $method = new ReflectionMethod(ComplexInputController::class, 'processWithDefaults');
+        $query = ['required' => 'test_value'];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(2, $args);
+        $this->assertSame('test_value', $args[0]); // Input parameter
+        $this->assertSame('default_value', $args[1]); // Non-Input with default
+    }
+
+    public function testIntArrayProcessing(): void
+    {
+        // Test array without item type - should pass through as-is
+        $method = new ReflectionMethod(ComplexInputController::class, 'processIntArray');
+        $query = [
+            'numbers' => ['1', '2', '3', '4', '5'],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertSame(['1', '2', '3', '4', '5'], $args[0]); // strings remain as strings without item type
+    }
+
+    public function testParameterWithoutInputOrDefault(): void
+    {
+        // Test parameter without Input attribute and without default - should trigger DI exception
+        $method = new ReflectionMethod(ComplexInputController::class, 'processRequiresDefault');
+        $query = [];
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Parameter "param" of type ":" is not bound in the injector.');
+
+        $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testNullableStringConversion(): void
+    {
+        // Test nullable parameter with actual null value
+        $method = new ReflectionMethod(ComplexInputController::class, 'processNullableParam');
+        $query = ['optional' => null];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]);
+    }
+
+    public function testNullableStringWithValue(): void
+    {
+        // Test nullable parameter with actual value
+        $method = new ReflectionMethod(ComplexInputController::class, 'processNullableParam');
+        $query = ['optional' => 'test_value'];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame('test_value', $args[0]);
+    }
+
+    public function testEmptyArrayProcessing(): void
+    {
+        // Test empty array processing
+        $method = new ReflectionMethod(ComplexInputController::class, 'processStringArray');
+        $query = ['items' => []];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertEmpty($args[0]);
+    }
+
+    public function testMixedArrayValues(): void
+    {
+        // Test array with mixed values (no item type specified)
+        $method = new ReflectionMethod(ComplexInputController::class, 'processStringArray');
+        $query = [
+            'items' => ['string', 123, true, null],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertSame(['string', 123, true, null], $args[0]);
+    }
+
+    public function testArrayObjectCreation(): void
+    {
+        // Test ArrayObject creation with item type
+        $method = new ReflectionMethod(ArrayObjectController::class, 'processArrayObject');
+        $query = [
+            'users' => [
+                ['name' => 'User1', 'email' => 'user1@example.com'],
+                ['name' => 'User2', 'email' => 'user2@example.com'],
+            ],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertInstanceOf(ArrayObject::class, $args[0]);
+        /** @var ArrayObject $arrayObject */
+        $arrayObject = $args[0];
+        $this->assertCount(2, $arrayObject);
+        $this->assertInstanceOf(UserInput::class, $arrayObject[0]);
+        $this->assertSame('User1', $arrayObject[0]->name);
+    }
+
+    public function testArrayObjectWithoutItemType(): void
+    {
+        // Test ArrayObject without item type - should create empty ArrayObject
+        $method = new ReflectionMethod(ArrayObjectController::class, 'processArrayObjectNoItem');
+        $query = ['items' => ['test']];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        // ArrayObject without item type creates empty ArrayObject via regular object creation
+        $this->assertInstanceOf(ArrayObject::class, $args[0]);
+        /** @var ArrayObject $arrayObject */
+        $arrayObject = $args[0];
+        $this->assertCount(0, $arrayObject); // Empty because no constructor parameters matched
+    }
+
+    public function testCustomArrayObjectSubclass(): void
+    {
+        // Test custom ArrayObject subclass
+        $method = new ReflectionMethod(ArrayObjectController::class, 'processCustomArrayObject');
+        $query = [
+            'users' => [
+                ['name' => 'User1', 'email' => 'user1@example.com'],
+                ['name' => 'User2', 'email' => 'user2@example.com'],
+            ],
+        ];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertInstanceOf(UserArrayObject::class, $args[0]);
+        /** @var UserArrayObject $userArrayObject */
+        $userArrayObject = $args[0];
+        $this->assertCount(2, $userArrayObject);
+        $this->assertInstanceOf(UserInput::class, $userArrayObject[0]);
+        $this->assertSame('User1', $userArrayObject[0]->name);
+    }
+
+    public function testSingleFileUpload(): void
+    {
+        // Test single file upload with #[InputFile]
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadSingle');
+        $fileUpload = FileUpload::create([
+            'name' => 'test.txt',
+            'type' => 'text/plain',
+            'size' => 100,
+            'tmp_name' => '/tmp/test',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $query = ['file' => $fileUpload];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame($fileUpload, $args[0]);
+    }
+
+    public function testMultipleFileUpload(): void
+    {
+        // Test multiple file upload with array
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $file1 = FileUpload::create([
+            'name' => 'test1.txt',
+            'type' => 'text/plain',
+            'size' => 100,
+            'tmp_name' => '/tmp/test1',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $file2 = FileUpload::create([
+            'name' => 'test2.txt',
+            'type' => 'text/plain',
+            'size' => 200,
+            'tmp_name' => '/tmp/test2',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $query = ['files' => [$file1, $file2]];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertCount(2, $args[0]);
+        $this->assertSame($file1, $args[0][0]);
+        $this->assertSame($file2, $args[0][1]);
+    }
+
+    public function testFileUploadWithValidation(): void
+    {
+        // Test file upload with validation options
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadWithValidation');
+        $fileUpload = FileUpload::create([
+            'name' => 'image.jpg',
+            'type' => 'image/jpeg',
+            'size' => 500,
+            'tmp_name' => '/tmp/image',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $query = ['image' => $fileUpload];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertSame($fileUpload, $args[0]);
+    }
+
+    public function testMultipleFileUploadWithValidation(): void
+    {
+        // Test multiple file upload with validation
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultipleWithValidation');
+        $file1 = FileUpload::create([
+            'name' => 'image1.png',
+            'type' => 'image/png',
+            'size' => 1000,
+            'tmp_name' => '/tmp/image1',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $file2 = FileUpload::create([
+            'name' => 'image2.jpg',
+            'type' => 'image/jpeg',
+            'size' => 1500,
+            'tmp_name' => '/tmp/image2',
+            'error' => UPLOAD_ERR_OK,
+        ]);
+        $query = ['images' => [$file1, $file2]];
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertCount(2, $args[0]);
+        $this->assertSame($file1, $args[0][0]);
+        $this->assertSame($file2, $args[0][1]);
+    }
+
+    public function testInputFileParameterFromFiles(): void
+    {
+        // Test resolveInputFileParameter using $_FILES - covers single file processing
+        $_FILES['file'] = [
+            'name' => 'test.txt',
+            'type' => 'text/plain',
+            'size' => 100,
+            'tmp_name' => '/tmp/test',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadSingle');
+        $query = []; // Empty query, should get from $_FILES
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertInstanceOf(FileUpload::class, $args[0]);
+        $this->assertSame('test.txt', $args[0]->name);
+    }
+
+    public function testInputFileArrayFromFiles(): void
+    {
+        // Test createArrayOfFileUploadsWithValidation using $_FILES array
+        $_FILES['files'] = [
+            [
+                'name' => 'file1.txt',
+                'type' => 'text/plain',
+                'size' => 100,
+                'tmp_name' => '/tmp/file1',
+                'error' => UPLOAD_ERR_OK,
+            ],
+            [
+                'name' => 'file2.txt',
+                'type' => 'text/plain',
+                'size' => 200,
+                'tmp_name' => '/tmp/file2',
+                'error' => UPLOAD_ERR_OK,
+            ],
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $query = []; // Empty query, should get from $_FILES
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertCount(2, $args[0]);
+        $this->assertInstanceOf(FileUpload::class, $args[0][0]);
+        $this->assertInstanceOf(FileUpload::class, $args[0][1]);
+    }
+
+    public function testConvertMultipleFileFormat(): void
+    {
+        // Test convertMultipleFileFormat using PHP $_FILES multiple format
+        $_FILES['files'] = [
+            'name' => ['file1.txt', 'file2.txt'],
+            'type' => ['text/plain', 'text/plain'],
+            'tmp_name' => ['/tmp/file1', '/tmp/file2'],
+            'size' => [100, 200],
+            'error' => [0, 0],
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $query = []; // Empty query, should get from $_FILES
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertGreaterThan(0, count($args[0]));
+        foreach ($args[0] as $file) {
+            $this->assertInstanceOf(FileUpload::class, $file);
+        }
+    }
+
+    public function testInputFileCreateMethod(): void
+    {
+        // Test using create() method like existing InputFileTest
+        $_FILES['avatar'] = [
+            'name' => 'test.txt',
+            'type' => 'text/plain',
+            'size' => 100,
+            'tmp_name' => '/tmp/test',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        // Use existing InputFileInput class that has #[InputFile] attribute
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(InputFileInput::class, $query);
+
+        $this->assertInstanceOf(InputFileInput::class, $input);
+        $this->assertInstanceOf(FileUpload::class, $input->avatar);
+        $this->assertSame('test.txt', $input->avatar->name);
+    }
+
+    public function testConvertMultipleFileFormatWithNoFile(): void
+    {
+        // Test convertMultipleFileFormat with UPLOAD_ERR_NO_FILE - covers continue statement
+        $_FILES['files'] = [
+            'name' => ['file1.txt', '', 'file3.txt'],
+            'type' => ['text/plain', '', 'text/plain'],
+            'tmp_name' => ['/tmp/file1', '', '/tmp/file3'],
+            'size' => [100, 0, 300],
+            'error' => [UPLOAD_ERR_OK, UPLOAD_ERR_NO_FILE, UPLOAD_ERR_OK],
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $query = []; // Empty query, should get from $_FILES
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+
+        // Debug output
+        foreach ($args[0] as $key => $file) {
+            if ($file instanceof FileUpload) {
+                $this->assertInstanceOf(FileUpload::class, $file);
+            }
+        }
+
+        // The array should contain 2 files (skipping UPLOAD_ERR_NO_FILE)
+        $files = array_values($args[0]); // Re-index to ensure sequential keys
+        $this->assertCount(2, $files);
+        $this->assertInstanceOf(FileUpload::class, $files[0]);
+        $this->assertSame('file1.txt', $files[0]->name);
+        $this->assertInstanceOf(FileUpload::class, $files[1]);
+        $this->assertSame('file3.txt', $files[1]->name);
+    }
+
+    public function testFileUploadArrayEmptyFiles(): void
+    {
+        // Test createArrayOfFileUploads when $_FILES is not set - should return empty array
+        // Clear $_FILES to trigger the empty return path
+        unset($_FILES['files']);
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertEmpty($args[0]); // Should be empty array
+    }
+
+    public function testNullableFileUploadWithNoFile(): void
+    {
+        // Test nullable file parameter with UPLOAD_ERR_NO_FILE
+        $_FILES['avatar'] = [
+            'name' => '',
+            'type' => '',
+            'size' => 0,
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+        ];
+
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(NullableFileInput::class, $query);
+
+        $this->assertInstanceOf(NullableFileInput::class, $input);
+        $this->assertNull($input->avatar); // Should be null for nullable parameter
+    }
+
+    public function testDefaultFileUploadWithNoFile(): void
+    {
+        // Test file parameter with default value when UPLOAD_ERR_NO_FILE
+        $_FILES['avatar'] = [
+            'name' => '',
+            'type' => '',
+            'size' => 0,
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+        ];
+
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(DefaultFileInput::class, $query);
+
+        $this->assertInstanceOf(DefaultFileInput::class, $input);
+        $this->assertNull($input->avatar); // Should use default value (null)
+    }
+
+    public function testRequiredFileUploadWithNoFile(): void
+    {
+        // Test required file parameter with UPLOAD_ERR_NO_FILE - should throw exception
+        $_FILES['file'] = [
+            'name' => '',
+            'type' => '',
+            'size' => 0,
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadRequired');
+        $query = []; // Empty query
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Required file parameter 'file' is missing");
+
+        $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testNullableFileUploadWithNoFileMethod(): void
+    {
+        // Test nullable file parameter in method with UPLOAD_ERR_NO_FILE
+        $_FILES['file'] = [
+            'name' => '',
+            'type' => '',
+            'size' => 0,
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadNullable');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]); // Should be null for nullable parameter
+    }
+
+    public function testDefaultFileUploadWithNoFileMethod(): void
+    {
+        // Test file parameter with default value in method when UPLOAD_ERR_NO_FILE
+        $_FILES['file'] = [
+            'name' => '',
+            'type' => '',
+            'size' => 0,
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadWithDefault');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]); // Should use default value (null)
+    }
+
+    public function testFileUploadMissingInFiles(): void
+    {
+        // Test when file is not in $_FILES at all (not even with UPLOAD_ERR_NO_FILE)
+        unset($_FILES['file']); // Make sure file key doesn't exist in $_FILES
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadNullable');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]); // Should be null for nullable parameter
+    }
+
+    public function testFileUploadMissingInFilesWithDefault(): void
+    {
+        // Test when file is not in $_FILES and parameter has default value
+        unset($_FILES['file']); // Make sure file key doesn't exist in $_FILES
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadWithDefault');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertNull($args[0]); // Should use default value (null)
+    }
+
+    public function testFileUploadMissingInFilesRequired(): void
+    {
+        // Test when required file is not in $_FILES at all - should throw exception
+        unset($_FILES['file']); // Make sure file key doesn't exist in $_FILES
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadRequired');
+        $query = []; // Empty query
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Required file parameter 'file' is missing");
+
+        $this->inputQuery->getArguments($method, $query);
+    }
+
+    public function testFileUploadArrayRegularFormatWithNoFile(): void
+    {
+        // Test regular array format with UPLOAD_ERR_NO_FILE - covers continue in foreach
+        $_FILES['files'] = [
+            0 => [
+                'name' => 'file1.txt',
+                'type' => 'text/plain',
+                'size' => 100,
+                'tmp_name' => '/tmp/file1',
+                'error' => UPLOAD_ERR_OK,
+            ],
+            1 => [
+                'name' => '',
+                'type' => '',
+                'size' => 0,
+                'tmp_name' => '',
+                'error' => UPLOAD_ERR_NO_FILE, // This should be skipped
+            ],
+            2 => [
+                'name' => 'file3.txt',
+                'type' => 'text/plain',
+                'size' => 300,
+                'tmp_name' => '/tmp/file3',
+                'error' => UPLOAD_ERR_OK,
+            ],
+        ];
+
+        $method = new ReflectionMethod(FileUploadController::class, 'uploadMultiple');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertIsArray($args[0]);
+        $this->assertCount(2, $args[0]); // Only 2 files (skipped the NO_FILE one)
+
+        $files = array_values($args[0]); // Re-index array
+        $this->assertInstanceOf(FileUpload::class, $files[0]);
+        $this->assertSame('file1.txt', $files[0]->name);
+        $this->assertInstanceOf(FileUpload::class, $files[1]);
+        $this->assertSame('file3.txt', $files[1]->name);
+    }
+
+    public function testMixedTypeFileUpload(): void
+    {
+        // Test file upload with mixed type (no type hint) - covers fallback in resolveInputFileParameter
+        $_FILES['file'] = [
+            'name' => 'test.txt',
+            'type' => 'text/plain',
+            'size' => 100,
+            'tmp_name' => '/tmp/test',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        $method = new ReflectionMethod(MixedFileController::class, 'uploadMixed');
+        $query = []; // Empty query
+
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertCount(1, $args);
+        $this->assertInstanceOf(FileUpload::class, $args[0]);
+        $this->assertSame('test.txt', $args[0]->name);
     }
 }

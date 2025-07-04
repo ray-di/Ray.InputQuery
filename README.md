@@ -1,6 +1,10 @@
 # Ray.InputQuery
 
-Structured input objects from HTTP.
+[![Continuous Integration](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml)
+[![Type Coverage](https://shepherd.dev/github/ray-di/Ray.InputQuery/coverage.svg)](https://shepherd.dev/github/ray-di/Ray.InputQuery)
+[![codecov](https://codecov.io/gh/ray-di/Ray.InputQuery/branch/main/graph/badge.svg)](https://codecov.io/gh/ray-di/Ray.InputQuery)
+
+Structured input objects from HTTP with 100% test coverage.
 
 ## Overview
 
@@ -44,9 +48,27 @@ public function createTodo(TodoInput $input) {
 composer require ray/input-query
 ```
 
+## Demo
+
+To see file upload integration in action:
+
+```bash
+php -S localhost:8080 -t demo/
+```
+
+Then visit [http://localhost:8080](http://localhost:8080) in your browser.
+
 ## Documentation
 
 Comprehensive documentation including design philosophy, AI prompts for development assistance, and sample data examples can be found in the [docs/](docs/) directory.
+
+### Framework Integration
+
+For framework-specific integration examples, see the **[Framework Integration Guide](docs/framework_integration.md)** which covers:
+
+- Laravel, Symfony, CakePHP, Yii Framework 1.x, BEAR.Sunday, and Slim Framework
+- Three usage patterns (Reflection, Direct Object Creation, Spread Operator)
+- Testing examples and best practices
 
 ## Usage
 
@@ -89,11 +111,11 @@ echo $user->email; // john@example.com
 // Method argument resolution from $_POST
 $method = new ReflectionMethod(UserController::class, 'register');
 $args = $inputQuery->getArguments($method, $_POST);
-$controller->register(...$args);
+$result = $method->invokeArgs($controller, $args);
 
-// Or with PSR-7 Request
+ // Or with PSR-7 Request
 $args = $inputQuery->getArguments($method, $request->getParsedBody());
-$controller->register(...$args);
+$result = $method->invokeArgs($controller, $args);
 ```
 
 ### Nested Objects
@@ -185,8 +207,8 @@ $data = [
     ]
 ];
 
-$args = $inputQuery->getArguments($method, $data);
-// $args[0] will be an array of UserInput objects
+$result = $method->invokeArgs($controller, $inputQuery->getArguments($method, $data));
+// Arguments automatically resolved as UserInput objects
 ```
 
 #### Simple array values (e.g., checkboxes)
@@ -286,12 +308,140 @@ All query keys are normalized to camelCase:
 - `user-name` → `userName`
 - `UserName` → `userName`
 
+## File Upload Integration
+
+Ray.InputQuery provides comprehensive file upload support through integration with [Koriym.FileUpload](https://github.com/koriym/Koriym.FileUpload):
+
+```bash
+composer require koriym/file-upload
+```
+
+### Using #[InputFile] Attribute
+
+For file uploads, use the dedicated `#[InputFile]` attribute which provides validation options:
+
+```php
+use Koriym\FileUpload\FileUpload;
+use Koriym\FileUpload\ErrorFileUpload;
+use Ray\InputQuery\Attribute\InputFile;
+
+final class UserProfileInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+        #[InputFile(
+            maxSize: 5 * 1024 * 1024,  // 5MB
+            allowedTypes: ['image/jpeg', 'image/png'],
+            allowedExtensions: ['jpg', 'jpeg', 'png']
+        )] 
+        public readonly FileUpload|ErrorFileUpload $avatar,
+        #[InputFile] public readonly FileUpload|ErrorFileUpload|null $banner = null,
+    ) {}
+}
+```
+
+// Method usage example - Direct attribute approach
+
+### Test-Friendly Design
+
+File upload handling is designed to be test-friendly:
+
+- **Production** - FileUpload library handles file uploads automatically
+- **Testing** - Direct FileUpload object injection for easy mocking
+
+```php
+// Production usage - FileUpload library handles file uploads automatically
+$input = $inputQuery->create(UserProfileInput::class, $_POST);
+// FileUpload objects are created automatically from uploaded files
+
+// Testing usage - inject mock FileUpload objects directly for easy testing
+$mockAvatar = FileUpload::create([
+    'name' => 'test.jpg',
+    'type' => 'image/jpeg', 
+    'size' => 1024,
+    'tmp_name' => '/tmp/test',
+    'error' => UPLOAD_ERR_OK,
+]);
+
+$input = $inputQuery->create(UserProfileInput::class, [
+    'name' => 'Test User',
+    'email' => 'test@example.com', 
+    'avatar' => $mockAvatar,
+    'banner' => null
+]);
+```
+
+### Multiple File Uploads
+
+Support for multiple file uploads using array types with validation:
+
+```php
+final class GalleryInput
+{
+    /**
+     * @param list<FileUpload|ErrorFileUpload> $images
+     */
+    public function __construct(
+        #[Input] public readonly string $title,
+        #[InputFile(
+            maxSize: 10 * 1024 * 1024,  // 10MB per file
+            allowedTypes: ['image/*']
+        )] 
+        public readonly array $images,
+    ) {}
+}
+
+// Method usage example
+class GalleryController
+{
+    public function createGallery(GalleryInput $input): void
+    {
+        $savedImages = [];
+        foreach ($input->images as $image) {
+            if ($image instanceof FileUpload) {
+                $savedImages[] = $this->saveFile($image, 'gallery/');
+            } elseif ($image instanceof ErrorFileUpload) {
+                // Log error but continue with other images
+                $this->logger->warning('Image upload failed: ' . $image->message);
+            }
+        }
+        
+        $this->galleryService->create($input->title, $savedImages);
+    }
+}
+
+// Production usage - FileUpload library handles multiple files automatically
+$input = $inputQuery->create(GalleryInput::class, $_POST);
+// Array of FileUpload objects created automatically from uploaded files
+
+// Testing usage - inject array of mock FileUpload objects for easy testing
+$mockImages = [
+    FileUpload::create(['name' => 'image1.jpg', ...]),
+    FileUpload::create(['name' => 'image2.png', ...])
+];
+
+$input = $inputQuery->create(GalleryInput::class, [
+    'title' => 'My Gallery',
+    'images' => $mockImages
+]);
+```
+
 ## Integration
 
 Ray.InputQuery is designed as a foundation library to be used by:
 
 - [Ray.MediaQuery](https://github.com/ray-di/Ray.MediaQuery) - For database query integration
 - [BEAR.Resource](https://github.com/bearsunday/BEAR.Resource) - For REST resource integration
+
+## Project Quality
+
+This project maintains high quality standards:
+
+- **100% Code Coverage** - Achieved through public interface tests only
+- **Static Analysis** - Psalm and PHPStan at maximum levels
+- **Test Design** - No private method tests, ensuring maintainability
+- **Type Safety** - Comprehensive Psalm type annotations
 
 ## Requirements
 
