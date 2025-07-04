@@ -1,8 +1,8 @@
 # Ray.InputQuery
 
-[![codecov](https://codecov.io/gh/ray-di/Ray.InputQuery/branch/main/graph/badge.svg)](https://codecov.io/gh/ray-di/Ray.InputQuery)
-[![Type Coverage](https://shepherd.dev/github/ray-di/Ray.InputQuery/coverage.svg)](https://shepherd.dev/github/ray-di/Ray.InputQuery)
 [![Continuous Integration](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml)
+[![Type Coverage](https://shepherd.dev/github/ray-di/Ray.InputQuery/coverage.svg)](https://shepherd.dev/github/ray-di/Ray.InputQuery)
+[![codecov](https://codecov.io/gh/ray-di/Ray.InputQuery/branch/main/graph/badge.svg)](https://codecov.io/gh/ray-di/Ray.InputQuery)
 
 Structured input objects from HTTP with 100% test coverage.
 
@@ -341,7 +341,6 @@ final class UserProfileInput
 }
 
 // Method usage example - Direct attribute approach
-RE}
 ```
 
 ### Test-Friendly Design
