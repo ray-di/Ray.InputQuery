@@ -26,7 +26,6 @@ use ReflectionUnionType;
 use function array_key_exists;
 use function assert;
 use function class_exists;
-use function count;
 use function gettype;
 use function is_array;
 use function is_bool;
@@ -45,12 +44,10 @@ use function strtolower;
 use function substr;
 use function ucwords;
 
-use const UPLOAD_ERR_NO_FILE;
-
 /**
  * @template T of object
  * @implements InputQueryInterface<T>
- * @psalm-type Query = array<string, mixed>
+ * @psalm-import-type Query from InputQueryInterface
  * @psalm-type FileData = array{name: string, type: string, size: int, tmp_name: string, error: int}
  * @psalm-type FileNameArray = array<int, string>
  * @psalm-type FileTypeArray = array<int, string>
@@ -68,9 +65,12 @@ use const UPLOAD_ERR_NO_FILE;
  */
 final class InputQuery implements InputQueryInterface
 {
+    private FileUploadFactory $fileUploadFactory;
+
     public function __construct(
         private InjectorInterface $injector,
     ) {
+        $this->fileUploadFactory = new FileUploadFactory();
     }
 
     /**
@@ -135,52 +135,7 @@ final class InputQuery implements InputQueryInterface
      */
     private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
     {
-        $type = $param->getType();
-
-        // Handle union types (e.g., FileUpload|ErrorFileUpload|null) with explicit type check
-        if ($type instanceof ReflectionUnionType) {
-            $unionTypes = $type->getTypes();
-            $allAllowed = true;
-            foreach ($unionTypes as $unionType) {
-                if (! $unionType instanceof ReflectionNamedType) {
-                    $allAllowed = false;
-                    break;
-                }
-
-                $typeName = $unionType->getName();
-                // Allow FileUpload types (with or without namespace) and null
-                if (! $this->isFileUploadType($typeName) && $typeName !== 'null') {
-                    $allAllowed = false;
-                    break;
-                }
-            }
-
-            if ($allAllowed) {
-                return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
-            }
-
-            // Optionally: throw or handle unexpected union types
-            throw new InvalidArgumentException(
-                'Unsupported union type for file upload parameter',
-            );
-        }
-
-        // Handle single FileUpload type
-        if ($type instanceof ReflectionNamedType) {
-            if ($this->isFileUploadType($type->getName())) {
-                return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
-            }
-
-            // Handle array of FileUpload
-            if ($type->getName() === 'array') {
-                $paramName = $param->getName();
-
-                return $this->createArrayOfFileUploadsWithValidation($paramName, $query, $inputFileAttributes);
-            }
-        }
-
-        // Fallback to regular file upload handling
-        return $this->resolveFileUploadWithValidation($param, $query, $inputFileAttributes);
+        return $this->fileUploadFactory->create($param, $query, $inputFileAttributes);
     }
 
     /**
@@ -223,7 +178,7 @@ final class InputQuery implements InputQueryInterface
                 $itemClass = $inputAttribute->item;
 
                 // Check if array items are FileUpload types
-                if ($this->isFileUploadType($itemClass)) {
+                if ($this->fileUploadFactory->isFileUploadType($itemClass)) {
                     throw new InvalidFileUploadAttributeException(
                         sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
                     );
@@ -251,7 +206,7 @@ final class InputQuery implements InputQueryInterface
         $className = $type->getName();
 
         // Check for FileUpload types - must use #[InputFile] not #[Input]
-        if ($this->isFileUploadType($className)) {
+        if ($this->fileUploadFactory->isFileUploadType($className)) {
             throw new InvalidFileUploadAttributeException(
                 sprintf('FileUpload parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
             );
@@ -486,219 +441,13 @@ final class InputQuery implements InputQueryInterface
         return $result;
     }
 
-    private function isFileUploadType(string $className): bool
-    {
-        // @codeCoverageIgnoreStart
-        if (! class_exists(FileUpload::class)) {
-            return false;
-        }
-
-        // @codeCoverageIgnoreEnd
-
-        return $className === FileUpload::class
-            || $className === ErrorFileUpload::class
-            || is_subclass_of($className, FileUpload::class);
-    }
-
-    /**
-     * @param Query               $query
-     * @param InputFileAttributes $inputFileAttributes
-     */
-    private function resolveFileUploadWithValidation(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
-    {
-        $validationOptions = $this->extractValidationOptions($inputFileAttributes);
-
-        return $this->resolveFileUpload($param, $query, $validationOptions);
-    }
-
-    /**
-     * @param InputFileAttributes $inputFileAttributes
-     *
-     * @return ValidationOptions
-     */
-    private function extractValidationOptions(array $inputFileAttributes): array
-    {
-        if (empty($inputFileAttributes)) {
-            return [];
-        }
-
-        $inputFile = $inputFileAttributes[0]->newInstance();
-        $options = [];
-
-        if ($inputFile->maxSize !== null && $inputFile->maxSize > 0) {
-            $options['maxSize'] = $inputFile->maxSize;
-        }
-
-        if ($inputFile->allowedTypes !== null) {
-            $options['allowedTypes'] = $inputFile->allowedTypes;
-        }
-
-        if ($inputFile->allowedExtensions !== null) {
-            $options['allowedExtensions'] = $inputFile->allowedExtensions;
-        }
-
-        return $options;
-    }
-
-    /**
-     * @param Query             $query
-     * @param ValidationOptions $validationOptions
-     */
-    private function resolveFileUpload(ReflectionParameter $param, array $query, array $validationOptions = []): mixed
-    {
-        $paramName = $param->getName();
-
-        // Check if FileUpload is provided in query (for testing)
-        if (array_key_exists($paramName, $query)) {
-            return $query[$paramName];
-        }
-
-        // Try to create from $_FILES
-        if (isset($_FILES[$paramName])) {
-            /** @var FileData $fileData */
-            $fileData = $_FILES[$paramName];
-
-            // Check if no file was uploaded (UPLOAD_ERR_NO_FILE)
-            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
-                if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
-                    return $this->getDefaultValueOrThrow($param, "Required file parameter '{$paramName}' is missing");
-                }
-
-                throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
-            }
-
-            return FileUpload::create($fileData, $validationOptions);
-        }
-
-        // No file found
-        if ($param->allowsNull() || $param->isDefaultValueAvailable()) {
-            return $this->getDefaultValueOrThrow($param, "Required file parameter '{$paramName}' is missing");
-        }
-
-        throw new InvalidArgumentException("Required file parameter '{$paramName}' is missing");
-    }
-
-    /**
-     * @param Query               $query
-     * @param InputFileAttributes $inputFileAttributes
-     *
-     * @return FileUploadArray
-     */
-    private function createArrayOfFileUploadsWithValidation(string $paramName, array $query, array $inputFileAttributes): array
-    {
-        $validationOptions = $this->extractValidationOptions($inputFileAttributes);
-
-        return $this->createArrayOfFileUploads($paramName, $query, $validationOptions);
-    }
-
-    /**
-     * @param Query             $query
-     * @param ValidationOptions $validationOptions
-     *
-     * @return FileUploadArray
-     */
-    private function createArrayOfFileUploads(string $paramName, array $query, array $validationOptions = []): array
-    {
-        // Check if FileUpload array is provided in query (for testing)
-        if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
-            /** @var FileUploadArray $result */
-            $result = $query[$paramName];
-
-            return $result;
-        }
-
-        // Try to create from $_FILES
-        if (! isset($_FILES[$paramName])) {
-            return [];
-        }
-
-        /** @var array<string, mixed> $arrayData */
-        $arrayData = $_FILES[$paramName];
-
-        // Check if this is HTML multiple file upload format
-        if (isset($arrayData['name']) && is_array($arrayData['name'])) {
-            /** @var MultipleFileData $arrayData */
-            return $this->convertMultipleFileFormat($arrayData, $validationOptions);
-        }
-
-        // Handle regular array format (each element is a complete file array)
-        $result = [];
-
-        /** @var FileData $fileData */
-        foreach ($arrayData as $key => $fileData) {
-            // Skip files that weren't uploaded
-            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
-                continue;
-            }
-
-            $result[$key] = FileUpload::create($fileData, $validationOptions);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Convert HTML multiple file upload format to individual file arrays
-     *
-     * @param MultipleFileData  $multipleFileData
-     * @param ValidationOptions $validationOptions
-     *
-     * @return FileUploadArray
-     */
-    private function convertMultipleFileFormat(array $multipleFileData, array $validationOptions = []): array
-    {
-        /** @var MultipleFileData $multipleFileData */
-
-        $result = [];
-        $fileCount = count($multipleFileData['name']);
-
-        for ($i = 0; $i < $fileCount; $i++) {
-            $fileData = [
-                'name' => $multipleFileData['name'][$i] ?? '',
-                'type' => $multipleFileData['type'][$i] ?? '',
-                'size' => $multipleFileData['size'][$i] ?? 0,
-                'tmp_name' => $multipleFileData['tmp_name'][$i] ?? '',
-                'error' => $multipleFileData['error'][$i] ?? UPLOAD_ERR_NO_FILE,
-            ];
-
-            // Skip files that weren't uploaded
-            if ($fileData['error'] === UPLOAD_ERR_NO_FILE) {
-                continue;
-            }
-
-            $result[$i] = FileUpload::create($fileData, $validationOptions);
-        }
-
-        return $result;
-    }
-
     /** @param Query $query */
     private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
-        // Check if this is a file upload union type (FileUpload|ErrorFileUpload|null)
-        $unionTypes = $type->getTypes();
-        $isFileUploadUnion = true;
-
-        foreach ($unionTypes as $unionType) {
-            if (! $unionType instanceof ReflectionNamedType) {
-                $isFileUploadUnion = false;
-                break;
-            }
-
-            $typeName = $unionType->getName();
-            // Allow FileUpload types (with or without namespace) and null
-            if (! $this->isFileUploadType($typeName) && $typeName !== 'null') {
-                $isFileUploadUnion = false;
-                break;
-            }
-        }
-
-        if ($isFileUploadUnion) {
-            // This is a valid FileUpload union, handle as file upload
-            $inputFileAttrs = $param->getAttributes(InputFile::class);
-            $validationOptions = $this->extractValidationOptions($inputFileAttrs);
-
-            return $this->resolveFileUpload($param, $query, $validationOptions);
+        // Check if this is a file upload union type, delegate to FileUploadFactory
+        $fileUploadResult = $this->fileUploadFactory->resolveFileUploadUnionType($param, $query, $type);
+        if ($fileUploadResult !== null) {
+            return $fileUploadResult;
         }
 
         // Not a FileUpload union type, handle as regular parameter
