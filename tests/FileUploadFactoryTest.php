@@ -80,7 +80,10 @@ final class FileUploadFactoryTest extends TestCase
 
     public function testCreateMultipleWithEmptyQuery(): void
     {
-        $result = $this->factory->createMultiple('uploads', [], null);
+        $method = new ReflectionMethod($this, 'dummyMethodForArrayFileUpload');
+        $param = $method->getParameters()[0];
+
+        $result = $this->factory->createMultiple($param, [], null);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
@@ -107,7 +110,10 @@ final class FileUploadFactoryTest extends TestCase
 
         $query = ['uploads' => $fileUploads];
 
-        $result = $this->factory->createMultiple('uploads', $query, null);
+        $method = new ReflectionMethod($this, 'dummyMethodForArrayFileUpload');
+        $param = $method->getParameters()[0];
+
+        $result = $this->factory->createMultiple($param, $query, null);
 
         $this->assertIsArray($result);
         $this->assertCount(2, $result);
@@ -168,6 +174,11 @@ final class FileUploadFactoryTest extends TestCase
     }
 
     public function dummyMethodForInvalidParameterType(string $invalidParam): void
+    {
+    }
+
+    /** @param array<mixed> $uploads */
+    public function dummyMethodForArrayFileUpload(array $uploads): void
     {
     }
 }
