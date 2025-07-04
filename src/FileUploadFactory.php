@@ -70,16 +70,17 @@ final class FileUploadFactory implements FileUploadFactoryInterface
      *
      * For HTML <input type="file" name="files[]" multiple> cases
      *
-     * @param string                              $paramName          Parameter name for file upload array
+     * @param ReflectionParameter                 $param              Parameter metadata for file upload array
      * @param Query                               $query              Service locator for pre-created FileUpload objects (testing) or empty array (production)
      * @param ReflectionAttribute<InputFile>|null $inputFileAttribute InputFile attribute instance containing validation options
      *
      * @return array<FileUploadKey, FileUpload|ErrorFileUpload>
      */
     #[Override]
-    public function createMultiple(string $paramName, array $query, ReflectionAttribute|null $inputFileAttribute): array
+    public function createMultiple(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): array
     {
         $validationOptions = $this->extractValidationOptions($inputFileAttribute);
+        $paramName = $param->getName();
 
         return $this->createArrayOfFileUploads($paramName, $query, $validationOptions);
     }

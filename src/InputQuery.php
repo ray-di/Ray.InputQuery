@@ -158,7 +158,7 @@ final class InputQuery implements InputQueryInterface
 
         // Handle array type for multiple file uploads
         if ($type instanceof ReflectionNamedType && $type->getName() === 'array') {
-            return $this->fileUploadFactory->createMultiple($param->getName(), $query, $inputFileAttribute);
+            return $this->fileUploadFactory->createMultiple($param, $query, $inputFileAttribute);
         }
 
         // Handle single file upload
@@ -220,7 +220,7 @@ final class InputQuery implements InputQueryInterface
                 $itemClass = $inputAttribute->item;
 
                 // Check if array items are FileUpload types
-                if ($this->isFileUploadType($itemClass)) {
+                if (FileUploadTypeChecker::isFileUploadType($itemClass)) {
                     throw new InvalidFileUploadAttributeException(
                         sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
                     );
@@ -248,7 +248,7 @@ final class InputQuery implements InputQueryInterface
         $className = $type->getName();
 
         // Check for FileUpload types - must use #[InputFile] not #[Input]
-        if ($this->isFileUploadType($className)) {
+        if (FileUploadTypeChecker::isFileUploadType($className)) {
             throw new InvalidFileUploadAttributeException(
                 sprintf('FileUpload parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
             );
@@ -487,7 +487,7 @@ final class InputQuery implements InputQueryInterface
     private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
         // Check if this is a file upload union type
-        if ($this->isValidFileUploadUnion($type)) {
+        if (FileUploadTypeChecker::isValidFileUploadUnion($type)) {
             // This is a valid FileUpload union, handle as file upload
             $inputFileAttrs = $param->getAttributes(InputFile::class);
             $inputFileAttribute = $inputFileAttrs[0] ?? null;
@@ -499,43 +499,5 @@ final class InputQuery implements InputQueryInterface
         $paramName = $param->getName();
 
         return $query[$paramName] ?? $this->getDefaultValue($param);
-    }
-
-    /**
-     * Check if a class name represents a FileUpload type
-     */
-    private function isFileUploadType(string $className): bool
-    {
-        if ($className === FileUpload::class || $className === ErrorFileUpload::class) {
-            return true;
-        }
-
-        return is_subclass_of($className, FileUpload::class) || is_subclass_of($className, ErrorFileUpload::class);
-    }
-
-    /**
-     * Check if union type is valid for file uploads
-     */
-    private function isValidFileUploadUnion(ReflectionUnionType $type): bool
-    {
-        $unionTypes = $type->getTypes();
-
-        foreach ($unionTypes as $unionType) {
-            if (! $unionType instanceof ReflectionNamedType) {
-                // @codeCoverageIgnoreStart
-                // This case occurs with PHP 8.2+ intersection types in union types like (A&B)|C
-                // Cannot be tested in PHP < 8.2 due to syntax errors
-                return false;
-                // @codeCoverageIgnoreEnd
-            }
-
-            $typeName = $unionType->getName();
-            // Allow FileUpload types (with or without namespace) and null
-            if (! $this->isFileUploadType($typeName) && $typeName !== 'null') {
-                return false;
-            }
-        }
-
-        return true;
     }
 }
