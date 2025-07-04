@@ -8,6 +8,7 @@ use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use PHPUnit\Framework\TestCase;
 use Ray\Di\Injector;
+use Ray\InputQuery\Fake\InputFileExtensionValidationInput;
 use Ray\InputQuery\Fake\InputFileInput;
 use Ray\InputQuery\Fake\InputFileValidationInput;
 use Ray\InputQuery\Fake\InputFileWithOptionsInput;
@@ -136,6 +137,65 @@ final class InputFileTest extends TestCase
         $this->assertInstanceOf(FileUpload::class, $input->avatar);
         $this->assertSame('small.jpg', $input->avatar->name);
         $this->assertSame(500, $input->avatar->size);
+    }
+
+    public function testFileValidationExtensionError(): void
+    {
+        // Simulate $_FILES data with invalid extension
+        $_FILES['avatar'] = [
+            'name' => 'document.pdf',
+            'type' => 'image/jpeg', // Valid type but invalid extension
+            'size' => 500,
+            'tmp_name' => '/tmp/document',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+
+        $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
+        $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
+        $this->assertNotNull($input->avatar->message);
+        $this->assertStringContainsString('File extension pdf is not allowed', $input->avatar->message);
+    }
+
+    public function testFileValidationExtensionSuccess(): void
+    {
+        // Simulate $_FILES data with valid extension
+        $_FILES['avatar'] = [
+            'name' => 'image.jpg',
+            'type' => 'image/jpeg',
+            'size' => 500,
+            'tmp_name' => '/tmp/image',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+
+        $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
+        $this->assertInstanceOf(FileUpload::class, $input->avatar);
+        $this->assertSame('image.jpg', $input->avatar->name);
+    }
+
+    public function testFileValidationExtensionCaseInsensitive(): void
+    {
+        // Test uppercase extension
+        $_FILES['avatar'] = [
+            'name' => 'image.JPG', // Uppercase extension
+            'type' => 'image/jpeg',
+            'size' => 500,
+            'tmp_name' => '/tmp/image',
+            'error' => UPLOAD_ERR_OK,
+        ];
+
+        $query = ['name' => 'test user'];
+        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+
+        $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
+        // This should fail because pathinfo() is case-sensitive
+        $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
+        $this->assertStringContainsString('File extension JPG is not allowed', $input->avatar->message);
     }
 
     protected function tearDown(): void
