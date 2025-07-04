@@ -339,9 +339,9 @@ final class UserProfileInput
         #[InputFile] public readonly FileUpload|ErrorFileUpload|null $banner = null,
     ) {}
 }
+```
 
 // Method usage example - Direct attribute approach
-```
 
 ### Test-Friendly Design
 
