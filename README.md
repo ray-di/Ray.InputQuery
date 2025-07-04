@@ -1,6 +1,10 @@
 # Ray.InputQuery
 
-Structured input objects from HTTP.
+[![codecov](https://codecov.io/gh/ray-di/Ray.InputQuery/branch/main/graph/badge.svg)](https://codecov.io/gh/ray-di/Ray.InputQuery)
+[![Type Coverage](https://shepherd.dev/github/ray-di/Ray.InputQuery/coverage.svg)](https://shepherd.dev/github/ray-di/Ray.InputQuery)
+[![Continuous Integration](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/ray-di/Ray.InputQuery/actions/workflows/continuous-integration.yml)
+
+Structured input objects from HTTP with 100% test coverage.
 
 ## Overview
 
@@ -298,23 +302,33 @@ All query keys are normalized to camelCase:
 
 ## File Upload Integration
 
-Ray.InputQuery supports file uploads through integration with [Koriym.FileUpload](https://github.com/koriym/Koriym.FileUpload):
+Ray.InputQuery provides comprehensive file upload support through integration with [Koriym.FileUpload](https://github.com/koriym/Koriym.FileUpload):
 
 ```bash
 composer require koriym/file-upload
 ```
 
+### Using #[InputFile] Attribute
+
+For file uploads, use the dedicated `#[InputFile]` attribute which provides validation options:
+
 ```php
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use Ray\InputQuery\Attribute\InputFile;
 
 final class UserProfileInput
 {
     public function __construct(
         #[Input] public readonly string $name,
         #[Input] public readonly string $email,
-        #[Input] public readonly FileUpload|ErrorFileUpload $avatar,        // Required avatar
-        #[Input] public readonly FileUpload|ErrorFileUpload|null $banner = null, // Optional banner
+        #[InputFile(
+            maxSize: 5 * 1024 * 1024,  // 5MB
+            allowedTypes: ['image/jpeg', 'image/png'],
+            allowedExtensions: ['jpg', 'jpeg', 'png']
+        )] 
+        public readonly FileUpload|ErrorFileUpload $avatar,
+        #[InputFile] public readonly FileUpload|ErrorFileUpload|null $banner = null,
     ) {}
 }
 
@@ -371,7 +385,7 @@ $input = $inputQuery->create(UserProfileInput::class, [
 
 ### Multiple File Uploads
 
-Support for multiple file uploads using array types:
+Support for multiple file uploads using array types with validation:
 
 ```php
 final class GalleryInput
@@ -381,7 +395,11 @@ final class GalleryInput
      */
     public function __construct(
         #[Input] public readonly string $title,
-        #[Input] public readonly array $images,
+        #[InputFile(
+            maxSize: 10 * 1024 * 1024,  // 10MB per file
+            allowedTypes: ['image/*']
+        )] 
+        public readonly array $images,
     ) {}
 }
 
@@ -426,6 +444,15 @@ Ray.InputQuery is designed as a foundation library to be used by:
 
 - [Ray.MediaQuery](https://github.com/ray-di/Ray.MediaQuery) - For database query integration
 - [BEAR.Resource](https://github.com/bearsunday/BEAR.Resource) - For REST resource integration
+
+## Project Quality
+
+This project maintains high quality standards:
+
+- **100% Code Coverage** - Achieved through public interface tests only
+- **Static Analysis** - Psalm and PHPStan at maximum levels
+- **Test Design** - No private method tests, ensuring maintainability
+- **Type Safety** - Comprehensive Psalm type annotations
 
 ## Requirements
 

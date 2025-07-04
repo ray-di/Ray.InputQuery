@@ -9,6 +9,7 @@ use Koriym\FileUpload\ErrorFileUpload;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
 
 // Note: In a production environment, the FileUpload library would handle
 // file uploads based on the environment (traditional PHP, Swoole, etc.)
@@ -31,8 +32,11 @@ final class FileUploadController
     public function handleUserProfile(
         #[Input] string $name,
         #[Input] string $email,
-        #[Input] FileUpload|ErrorFileUpload $avatar,
-        #[Input] FileUpload|ErrorFileUpload|null $banner = null,
+        #[InputFile(
+            maxSize: 2 * 1024 * 1024,  // 2MB
+            allowedTypes: ['image/jpeg', 'image/png', 'image/gif']
+        )] FileUpload|ErrorFileUpload $avatar,
+        #[InputFile] FileUpload|ErrorFileUpload|null $banner = null,
     ): array {
         try {
             $results = [
@@ -74,7 +78,10 @@ final class FileUploadController
     
     public function handleGallery(
         #[Input] string $title,
-        #[Input] array $images,
+        #[InputFile(
+            maxSize: 1 * 1024 * 1024,  // 1MB per file
+            allowedTypes: ['image/jpeg', 'image/png']
+        )] array $images,
     ): array {
         try {
             $results = [
@@ -340,11 +347,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     public function __construct(
         #[Input] public readonly string $name,
         #[Input] public readonly string $email,
-        #[Input(fileOptions: [
-            'maxSize' => 2 * 1024 * 1024,
-            'allowedTypes' => ['image/jpeg', 'image/png', 'image/gif']
-        ])] public readonly FileUpload|ErrorFileUpload $avatar,
-        #[Input] public readonly FileUpload|ErrorFileUpload|null $banner = null,
+        #[InputFile(
+            maxSize: 2 * 1024 * 1024,  // 2MB
+            allowedTypes: ['image/jpeg', 'image/png', 'image/gif']
+        )] public readonly FileUpload|ErrorFileUpload $avatar,
+        #[InputFile] public readonly FileUpload|ErrorFileUpload|null $banner = null,
     ) {}
 }</code></pre>
         </div>
@@ -380,10 +387,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
      */
     public function __construct(
         #[Input] public readonly string $title,
-        #[Input(item: FileUpload::class, fileOptions: [
-            'maxSize' => 1 * 1024 * 1024,
-            'allowedTypes' => ['image/jpeg', 'image/png']
-        ])] public readonly array $images,
+        #[InputFile(
+            maxSize: 1 * 1024 * 1024,  // 1MB per file
+            allowedTypes: ['image/jpeg', 'image/png']
+        )] public readonly array $images,
     ) {}
 }</code></pre>
         </div>
