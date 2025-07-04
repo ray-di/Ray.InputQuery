@@ -56,7 +56,7 @@ To see file upload integration in action:
 php -S localhost:8080 -t demo/
 ```
 
-Then visit http://localhost:8080 in your browser.
+Then visit [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## Documentation
 
