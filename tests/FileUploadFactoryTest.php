@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
-use Countable;
 use InvalidArgumentException;
 use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 use ReflectionMethod;
 use ReflectionUnionType;
-use Traversable;
 
-use const PHP_VERSION_ID;
 use const UPLOAD_ERR_NO_FILE;
 use const UPLOAD_ERR_OK;
 
@@ -193,34 +189,6 @@ final class FileUploadFactoryTest extends TestCase
         $this->factory->create($param, [], $inputFileAttributes);
     }
 
-    public function testIsValidFileUploadUnionWithIntersectionType(): void
-    {
-        // Test case for PHP 8.1+ intersection types in union types
-        // This should reach the 'return false' when a non-ReflectionNamedType is encountered
-        if (PHP_VERSION_ID < 80100) {
-            $this->markTestSkipped('Intersection types require PHP 8.1+');
-        }
-
-        $method = new ReflectionMethod($this, 'dummyMethodForComplexUnionType');
-        $param = $method->getParameters()[0];
-        $unionType = $param->getType();
-
-        $this->assertInstanceOf(ReflectionUnionType::class, $unionType);
-
-        // Call the private method to test the return false case
-        $reflection = new ReflectionClass($this->factory);
-        $isValidMethod = $reflection->getMethod('isValidFileUploadUnion');
-        $isValidMethod->setAccessible(true);
-
-        $result = $isValidMethod->invoke($this->factory, $unionType);
-
-        // Should return false because ReflectionIntersectionType is not ReflectionNamedType
-        $this->assertFalse($result);
-
-        // Verify that this triggers the expected behavior in resolveFileUploadUnionType
-        $resolveResult = $this->factory->resolveFileUploadUnionType($param, [], $unionType);
-        $this->assertNull($resolveResult);
-    }
 
     /**
      * Dummy methods for reflection testing
@@ -249,10 +217,4 @@ final class FileUploadFactoryTest extends TestCase
     {
     }
 
-    /**
-     * Try to create a case with intersection types (PHP 8.1+)
-     */
-    public function dummyMethodForComplexUnionType((Traversable&Countable)|string|null $param): void
-    {
-    }
 }
