@@ -24,7 +24,7 @@ final class InputFileTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->inputQuery = new InputQuery(new Injector());
+        $this->inputQuery = new InputQuery(new Injector(), new FileUploadFactory());
     }
 
     public function testCreateFileInputFromQuery(): void

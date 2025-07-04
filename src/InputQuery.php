@@ -26,6 +26,7 @@ use ReflectionUnionType;
 use function array_key_exists;
 use function assert;
 use function class_exists;
+use function count;
 use function gettype;
 use function is_array;
 use function is_bool;
@@ -44,6 +45,8 @@ use function strtolower;
 use function substr;
 use function ucwords;
 
+use const UPLOAD_ERR_NO_FILE;
+
 /**
  * @template T of object
  * @implements InputQueryInterface<T>
@@ -56,7 +59,8 @@ use function ucwords;
  * @psalm-type FileErrorArray = array<int, int>
  * @psalm-type MultipleFileData = array{name: FileNameArray, type: FileTypeArray, size: FileSizeArray, tmp_name: FileTmpNameArray, error: FileErrorArray}
  * @psalm-type ValidationOptions = array{maxSize?: int<1, max>, allowedTypes?: list<string>, allowedExtensions?: list<string>}
- * @psalm-type FileUploadArray = array<array-key, FileUpload|ErrorFileUpload>
+ * @psalm-type FileUploadKey = int|string
+ * @psalm-type FileUploadArray = array<FileUploadKey, FileUpload|ErrorFileUpload>
  * @psalm-type NestedQuery = array<string, mixed>
  * @psalm-type InputArray = array<int, mixed>
  * @psalm-type ParameterValue = scalar|array<array-key, mixed>|object|null
@@ -65,12 +69,10 @@ use function ucwords;
  */
 final class InputQuery implements InputQueryInterface
 {
-    private FileUploadFactory $fileUploadFactory;
-
     public function __construct(
         private InjectorInterface $injector,
+        private FileUploadFactoryInterface $fileUploadFactory,
     ) {
-        $this->fileUploadFactory = new FileUploadFactory();
     }
 
     /**
@@ -144,7 +146,38 @@ final class InputQuery implements InputQueryInterface
      */
     private function resolveInputFileParameter(ReflectionParameter $param, array $query, array $inputFileAttributes): mixed
     {
-        return $this->fileUploadFactory->create($param, $query, $inputFileAttributes);
+        // Validate that only one InputFile attribute is present
+        if (count($inputFileAttributes) > 1) {
+            throw new InvalidArgumentException(
+                'Only one #[InputFile] attribute is allowed per parameter',
+            );
+        }
+
+        $type = $param->getType();
+        $inputFileAttribute = $inputFileAttributes[0] ?? null;
+
+        // Handle array type for multiple file uploads
+        if ($type instanceof ReflectionNamedType && $type->getName() === 'array') {
+            return $this->fileUploadFactory->createMultiple($param->getName(), $query, $inputFileAttribute);
+        }
+
+        // Handle single file upload
+        $result = $this->fileUploadFactory->create($param, $query, $inputFileAttribute);
+
+        // Handle ErrorFileUpload for missing files
+        if ($result instanceof ErrorFileUpload && $result->error === UPLOAD_ERR_NO_FILE) {
+            // For nullable parameters, return null
+            if ($param->allowsNull()) {
+                return null;
+            }
+
+            // For required parameters, throw exception
+            throw new InvalidArgumentException(
+                sprintf("Required file parameter '%s' is missing", $param->getName()),
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -187,7 +220,7 @@ final class InputQuery implements InputQueryInterface
                 $itemClass = $inputAttribute->item;
 
                 // Check if array items are FileUpload types
-                if ($this->fileUploadFactory->isFileUploadType($itemClass)) {
+                if ($this->isFileUploadType($itemClass)) {
                     throw new InvalidFileUploadAttributeException(
                         sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
                     );
@@ -215,7 +248,7 @@ final class InputQuery implements InputQueryInterface
         $className = $type->getName();
 
         // Check for FileUpload types - must use #[InputFile] not #[Input]
-        if ($this->fileUploadFactory->isFileUploadType($className)) {
+        if ($this->isFileUploadType($className)) {
             throw new InvalidFileUploadAttributeException(
                 sprintf('FileUpload parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
             );
@@ -453,15 +486,56 @@ final class InputQuery implements InputQueryInterface
     /** @param Query $query */
     private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
     {
-        // Check if this is a file upload union type, delegate to FileUploadFactory
-        $fileUploadResult = $this->fileUploadFactory->resolveFileUploadUnionType($param, $query, $type);
-        if ($fileUploadResult !== null) {
-            return $fileUploadResult;
+        // Check if this is a file upload union type
+        if ($this->isValidFileUploadUnion($type)) {
+            // This is a valid FileUpload union, handle as file upload
+            $inputFileAttrs = $param->getAttributes(InputFile::class);
+            $inputFileAttribute = $inputFileAttrs[0] ?? null;
+
+            return $this->fileUploadFactory->create($param, $query, $inputFileAttribute);
         }
 
         // Not a FileUpload union type, handle as regular parameter
         $paramName = $param->getName();
 
         return $query[$paramName] ?? $this->getDefaultValue($param);
+    }
+
+    /**
+     * Check if a class name represents a FileUpload type
+     */
+    private function isFileUploadType(string $className): bool
+    {
+        if ($className === FileUpload::class || $className === ErrorFileUpload::class) {
+            return true;
+        }
+
+        return is_subclass_of($className, FileUpload::class) || is_subclass_of($className, ErrorFileUpload::class);
+    }
+
+    /**
+     * Check if union type is valid for file uploads
+     */
+    private function isValidFileUploadUnion(ReflectionUnionType $type): bool
+    {
+        $unionTypes = $type->getTypes();
+
+        foreach ($unionTypes as $unionType) {
+            if (! $unionType instanceof ReflectionNamedType) {
+                // @codeCoverageIgnoreStart
+                // This case occurs with PHP 8.2+ intersection types in union types like (A&B)|C
+                // Cannot be tested in PHP < 8.2 due to syntax errors
+                return false;
+                // @codeCoverageIgnoreEnd
+            }
+
+            $typeName = $unionType->getName();
+            // Allow FileUpload types (with or without namespace) and null
+            if (! $this->isFileUploadType($typeName) && $typeName !== 'null') {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
