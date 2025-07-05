@@ -12,12 +12,21 @@ use Throwable;
 
 use function array_combine;
 use function array_filter;
-use function array_slice;
+use function array_map;
+use function array_unique;
 use function count;
+use function file_exists;
+use function file_get_contents;
+use function file_put_contents;
 use function filter_var;
 use function implode;
 use function is_numeric;
+use function mb_convert_encoding;
+use function mb_detect_encoding;
+use function sys_get_temp_dir;
+use function tempnam;
 use function trim;
+use function unlink;
 
 use const FILTER_VALIDATE_EMAIL;
 
@@ -57,7 +66,23 @@ final class CsvImportDemo
         ];
 
         try {
-            $csvData = new SplFileObject($this->csvFile->tmp_name);
+            // Handle encoding conversion if needed
+            $tempFile = null;
+            $fileContent = file_get_contents($this->csvFile->tmp_name);
+            if ($this->encoding !== 'UTF-8') {
+                $detectedEncoding = mb_detect_encoding($fileContent, ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'Shift_JIS'], true);
+                if ($detectedEncoding && $detectedEncoding !== 'UTF-8') {
+                    $fileContent = mb_convert_encoding($fileContent, 'UTF-8', $detectedEncoding);
+                    $tempFile = tempnam(sys_get_temp_dir(), 'csv_utf8_');
+                    file_put_contents($tempFile, $fileContent);
+                    $csvData = new SplFileObject($tempFile);
+                } else {
+                    $csvData = new SplFileObject($this->csvFile->tmp_name);
+                }
+            } else {
+                $csvData = new SplFileObject($this->csvFile->tmp_name);
+            }
+
             $csvData->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
             $csvData->setCsvControl($this->delimiter);
 
@@ -73,12 +98,28 @@ final class CsvImportDemo
 
                 // First row as headers
                 if ($this->hasHeader && $rowNumber === 1) {
-                    $headers = $row;
+                    $headers = array_map('trim', $row);
+
+                    // Validate headers
+                    $headerValidation = $this->validateHeaders($headers);
+                    if (! $headerValidation['valid']) {
+                        $results['success'] = false;
+                        $results['errors'][] = 'Header validation failed: ' . $headerValidation['error'];
+
+                        return $results;
+                    }
+
                     continue;
                 }
 
                 // Process data row
                 if ($this->hasHeader && ! empty($headers)) {
+                    // Validate row length matches header count
+                    if (count($row) !== count($headers)) {
+                        $results['errors'][] = "Row {$rowNumber}: Column count mismatch. Expected " . count($headers) . ' columns, got ' . count($row);
+                        continue;
+                    }
+
                     $userData = array_combine($headers, $row);
                 } else {
                     $userData = [
@@ -109,9 +150,41 @@ final class CsvImportDemo
         } catch (Throwable $e) {
             $results['success'] = false;
             $results['errors'][] = 'File processing error: ' . $e->getMessage();
+        } finally {
+            // Clean up temporary file if created
+            if ($tempFile && file_exists($tempFile)) {
+                unlink($tempFile);
+            }
         }
 
         return $results;
+    }
+
+    private function validateHeaders(array $headers): array
+    {
+        $errors = [];
+
+        // Check for empty headers
+        foreach ($headers as $i => $header) {
+            if (empty(trim($header))) {
+                $errors[] = 'Empty header at column ' . ($i + 1);
+            }
+        }
+
+        // Check for duplicate headers
+        $uniqueHeaders = array_unique($headers);
+        if (count($uniqueHeaders) !== count($headers)) {
+            $errors[] = 'Duplicate headers found';
+        }
+
+        if (! empty($errors)) {
+            return [
+                'valid' => false,
+                'error' => implode(', ', $errors),
+            ];
+        }
+
+        return ['valid' => true];
     }
 
     private function validateUserData(array $data): array
@@ -159,41 +232,6 @@ final class CsvImportDemo
     {
         $results = $this->processUsers();
 
-        $summary = "📊 CSV Import Summary\n";
-        $summary .= "====================\n";
-        $summary .= "File: {$this->csvFile->name} ({$this->csvFile->size} bytes)\n";
-        $summary .= "Delimiter: '{$this->delimiter}'\n";
-        $summary .= "Encoding: {$this->encoding}\n";
-        $summary .= 'Has Header: ' . ($this->hasHeader ? 'Yes' : 'No') . "\n";
-        $summary .= "Processed: {$results['processed']} users\n";
-        $summary .= 'Errors: ' . count($results['errors']) . "\n\n";
-
-        if (! empty($results['users'])) {
-            $summary .= "✅ Successfully imported users:\n";
-            foreach (array_slice($results['users'], 0, 5) as $i => $user) {
-                $age = $user['age'] ? " (age: {$user['age']})" : '';
-                $dept = $user['department'] ? " - {$user['department']}" : '';
-                $summary .= '  ' . ($i + 1) . ". {$user['name']} <{$user['email']}>{$age}{$dept}\n";
-            }
-
-            if (count($results['users']) > 5) {
-                $remaining = count($results['users']) - 5;
-                $summary .= "  ... and {$remaining} more users\n";
-            }
-        }
-
-        if (! empty($results['errors'])) {
-            $summary .= "\n❌ Errors encountered:\n";
-            foreach (array_slice($results['errors'], 0, 3) as $error) {
-                $summary .= "  • {$error}\n";
-            }
-
-            if (count($results['errors']) > 3) {
-                $remaining = count($results['errors']) - 3;
-                $summary .= "  ... and {$remaining} more errors\n";
-            }
-        }
-
-        return $summary;
+        return ImportSummaryFormatter::formatComplete($results);
     }
 }

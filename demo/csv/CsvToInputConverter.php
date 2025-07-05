@@ -10,6 +10,7 @@ use SplFileObject;
 
 use function array_filter;
 use function array_map;
+use function count;
 use function date;
 use function lcfirst;
 use function str_replace;
@@ -37,7 +38,7 @@ final class CsvToInputConverter
      */
     public function convertCsvToQueryData(FileUpload $csvFile, string $importBatch = ''): array
     {
-        $csvData = new SplFileObject($csvFile->tmpName);
+        $csvData = new SplFileObject($csvFile->tmp_name);
         $csvData->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
         $csvData->setCsvControl($this->delimiter);
 
@@ -60,6 +61,12 @@ final class CsvToInputConverter
 
             // Process data row
             if ($this->hasHeader && ! empty($headers)) {
+                // Validate row length matches header count
+                if (count($row) !== count($headers)) {
+                    // Skip malformed rows or pad/truncate as needed
+                    continue;
+                }
+
                 $userData = [];
                 foreach ($headers as $i => $header) {
                     $value = isset($row[$i]) ? trim($row[$i]) : '';

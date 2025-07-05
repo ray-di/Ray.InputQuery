@@ -8,44 +8,31 @@ use InvalidArgumentException;
 use Koriym\FileUpload\FileUpload;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
-use SimpleXMLElement;
-use SplFileObject;
 use Throwable;
 
-use function array_combine;
-use function array_filter;
-use function array_map;
-use function array_pad;
+use function array_merge;
 use function array_slice;
 use function count;
-use function explode;
-use function file_get_contents;
 use function is_array;
-use function json_decode;
 use function json_encode;
-use function json_last_error;
-use function pathinfo;
-use function str_contains;
-use function str_starts_with;
 use function strlen;
-use function strtolower;
 use function substr;
-use function substr_count;
-use function trim;
 
-use const JSON_ERROR_NONE;
-use const JSON_THROW_ON_ERROR;
 use const JSON_UNESCAPED_UNICODE;
-use const PATHINFO_EXTENSION;
 
 /**
  * Multi-Format File Processing Demo
  *
  * Demonstrates how Ray.InputQuery can handle multiple file formats
- * (CSV, JSON, XML, TXT) with unified processing.
+ * (CSV, JSON, XML, TXT) with unified processing using strategy pattern.
  */
 final class MultiFormatDemo
 {
+    private FormatDetectorInterface $formatDetector;
+
+    /** @var array<FormatProcessorInterface> */
+    private array $processors;
+
     public function __construct(
         #[InputFile(
             allowedExtensions: ['csv', 'json', 'xml', 'txt', 'tsv'],
@@ -68,6 +55,11 @@ final class MultiFormatDemo
         #[Input]
         public readonly array $options = [],
     ) {
+        $this->formatDetector = new FileFormatDetector();
+        $this->processors = [
+            new CsvFormatProcessor(),
+            new JsonFormatProcessor(),
+        ];
     }
 
     public function processFile(): array
@@ -83,33 +75,24 @@ final class MultiFormatDemo
 
         try {
             // Auto-detect format if requested
-            $detectedFormat = $this->autoDetect ? $this->detectFileFormat() : $this->format;
+            $detectedFormat = $this->autoDetect ? $this->formatDetector->detectFormat($this->dataFile) : $this->format;
             $results['detected_format'] = $detectedFormat;
 
-            // Process based on format
-            switch ($detectedFormat) {
-                case 'csv':
-                case 'tsv':
-                    $results['data'] = $this->processCsvFile($detectedFormat === 'tsv' ? "\t" : ',');
-                    break;
-                case 'json':
-                    $results['data'] = $this->processJsonFile();
-                    break;
-                case 'xml':
-                    $results['data'] = $this->processXmlFile();
-                    break;
-                case 'txt':
-                    $results['data'] = $this->processTextFile();
-                    break;
-                default:
-                    throw new InvalidArgumentException("Unsupported format: {$detectedFormat}");
+            // Find appropriate processor
+            $processor = $this->findProcessor($detectedFormat);
+            if ($processor === null) {
+                throw new InvalidArgumentException("Unsupported format: {$detectedFormat}");
             }
+
+            // Process using strategy
+            $processingOptions = array_merge($this->options, ['format' => $detectedFormat]);
+            $results['data'] = $processor->process($this->dataFile, $processingOptions);
 
             $results['metadata'] = [
                 'file_name' => $this->dataFile->name,
                 'file_size' => $this->dataFile->size,
                 'processed_format' => $detectedFormat,
-                'records_count' => count($results['data']),
+                'records_count' => $results['data']['total_rows'] ?? $results['data']['total_items'] ?? 0,
                 'processing_options' => $this->options,
             ];
         } catch (Throwable $e) {
@@ -120,167 +103,15 @@ final class MultiFormatDemo
         return $results;
     }
 
-    private function detectFileFormat(): string
+    private function findProcessor(string $format): FormatProcessorInterface|null
     {
-        $extension = strtolower(pathinfo($this->dataFile->name, PATHINFO_EXTENSION));
-
-        // If format is explicitly set and not 'auto', use it
-        if ($this->format !== 'auto') {
-            return $this->format;
-        }
-
-        // Detect by extension
-        switch ($extension) {
-            case 'csv':
-                return 'csv';
-
-            case 'tsv':
-                return 'tsv';
-
-            case 'json':
-                return 'json';
-
-            case 'xml':
-                return 'xml';
-
-            case 'txt':
-                return 'txt';
-
-            default:
-                // Try to detect by content
-                return $this->detectFormatByContent();
-        }
-    }
-
-    private function detectFormatByContent(): string
-    {
-        $content = file_get_contents($this->dataFile->tmp_name, false, null, 0, 1024);
-
-        // Try JSON
-        if ($this->isValidJson($content)) {
-            return 'json';
-        }
-
-        // Try XML
-        if (str_starts_with(trim($content), '<?xml') || str_starts_with(trim($content), '<')) {
-            return 'xml';
-        }
-
-        // Check for CSV patterns
-        if (str_contains($content, ',') && substr_count($content, ',') > substr_count($content, "\t")) {
-            return 'csv';
-        }
-
-        // Check for TSV patterns
-        if (str_contains($content, "\t")) {
-            return 'tsv';
-        }
-
-        // Default to text
-        return 'txt';
-    }
-
-    private function isValidJson(string $content): bool
-    {
-        json_decode($content);
-
-        return json_last_error() === JSON_ERROR_NONE;
-    }
-
-    private function processCsvFile(string $delimiter = ','): array
-    {
-        $data = [];
-        $csvData = new SplFileObject($this->dataFile->tmp_name);
-        $csvData->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
-        $csvData->setCsvControl($delimiter);
-
-        $headers = null;
-        $hasHeader = $this->options['has_header'] ?? true;
-
-        foreach ($csvData as $rowNumber => $row) {
-            if (empty(array_filter($row))) {
-                continue;
-            }
-
-            if ($hasHeader && $rowNumber === 0) {
-                $headers = $row;
-                continue;
-            }
-
-            if ($headers) {
-                $data[] = array_combine($headers, array_pad($row, count($headers), ''));
-            } else {
-                $data[] = $row;
+        foreach ($this->processors as $processor) {
+            if ($processor->supports($format)) {
+                return $processor;
             }
         }
 
-        return $data;
-    }
-
-    private function processJsonFile(): array
-    {
-        $content = file_get_contents($this->dataFile->tmp_name);
-        $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-
-        // Ensure we return an array of records
-        if (! is_array($data)) {
-            return [$data];
-        }
-
-        // If it's an associative array (single object), wrap it
-        if (! isset($data[0]) && ! empty($data)) {
-            return [$data];
-        }
-
-        return $data;
-    }
-
-    private function processXmlFile(): array
-    {
-        $content = file_get_contents($this->dataFile->tmp_name);
-        $xml = new SimpleXMLElement($content);
-
-        // Convert XML to array
-        return $this->xmlToArray($xml);
-    }
-
-    private function xmlToArray(SimpleXMLElement $xml): array
-    {
-        $data = [];
-
-        foreach ($xml->children() as $child) {
-            if ($child->count() > 0) {
-                $data[] = $this->xmlElementToArray($child);
-            } else {
-                $data[] = (string) $child;
-            }
-        }
-
-        return $data;
-    }
-
-    private function xmlElementToArray(SimpleXMLElement $element): array
-    {
-        $array = [];
-
-        foreach ($element->children() as $child) {
-            $name = $child->getName();
-            if ($child->count() > 0) {
-                $array[$name] = $this->xmlElementToArray($child);
-            } else {
-                $array[$name] = (string) $child;
-            }
-        }
-
-        return $array;
-    }
-
-    private function processTextFile(): array
-    {
-        $content = file_get_contents($this->dataFile->tmp_name);
-        $lines = explode("\n", $content);
-
-        return array_map('trim', array_filter($lines));
+        return null;
     }
 
     public function getSummary(): string
@@ -296,7 +127,9 @@ final class MultiFormatDemo
         $summary .= 'Status: ' . ($results['success'] ? '✅ Success' : '❌ Failed') . "\n\n";
 
         if ($results['success']) {
-            $recordCount = count($results['data']);
+            $data = $results['data'];
+            $items = $data['items'] ?? [];
+            $recordCount = count($items);
             $summary .= "📊 Processing Results:\n";
             $summary .= "  Records Found: {$recordCount}\n";
 
@@ -304,7 +137,7 @@ final class MultiFormatDemo
                 $summary .= "  Sample Data:\n";
 
                 // Show first few records
-                $sampleData = array_slice($results['data'], 0, 3);
+                $sampleData = array_slice($items, 0, 3);
                 foreach ($sampleData as $i => $record) {
                     $recordStr = is_array($record) ? json_encode($record, JSON_UNESCAPED_UNICODE) : $record;
                     $preview = strlen($recordStr) > 80 ? substr($recordStr, 0, 77) . '...' : $recordStr;
