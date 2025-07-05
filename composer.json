@@ -10,7 +10,8 @@
     ],
     "require": {
         "php": "^8.1",
-        "ray/di": "^2.18"
+        "ray/di": "^2.18",
+        "symfony/polyfill-php83": "^1.28"
     },
     "suggest": {
         "koriym/file-upload": "For file upload handling integration"

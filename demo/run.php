@@ -6,25 +6,31 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/UserProfile.php';
 require_once __DIR__ . '/BlogPost.php';
 require_once __DIR__ . '/BlogController.php';
+require_once __DIR__ . '/FileUploadExample.php';
 
+use Koriym\FileUpload\FileUpload;
 use Ray\Di\AbstractModule;
 use Ray\Di\Injector;
 use Ray\InputQuery\Demo\BlogController;
 use Ray\InputQuery\Demo\BlogPost;
+use Ray\InputQuery\Demo\FileUploadExample;
 use Ray\InputQuery\Demo\UserProfile;
+use Ray\InputQuery\FileUploadFactory;
+use Ray\InputQuery\FileUploadFactoryInterface;
 use Ray\InputQuery\InputQuery;
 
 echo "=== Ray.InputQuery Demo ===\n\n";
 
-// Setup dependency injection
+// Setup dependency injection with FileUploadFactory
 $injector = new Injector(new class extends AbstractModule {
     protected function configure(): void
     {
         $this->bind()->annotatedWith('app.version')->toInstance('1.0.0');
+        $this->bind(FileUploadFactoryInterface::class)->to(FileUploadFactory::class);
     }
 });
 
-$inputQuery = new InputQuery($injector);
+$inputQuery = new InputQuery($injector, $injector->getInstance(FileUploadFactoryInterface::class));
 
 echo "1. Simple User Profile Creation\n";
 echo "================================\n";
@@ -120,5 +126,68 @@ $snakeCaseData = [
 $snakeCasePost = $inputQuery->create(BlogPost::class, $snakeCaseData);
 echo "Successfully converted snake_case keys:\n";
 echo $snakeCasePost->getPostSummary() . "\n\n";
+
+echo "7. File Upload with Factory Interface\n";
+echo "=====================================\n";
+
+// Simulate file upload data (normally from $_FILES)
+$fileUploadData = [
+    'title' => 'Project Files',
+    'avatar' => FileUpload::create([
+        'name' => 'profile.jpg',
+        'type' => 'image/jpeg',
+        'size' => 1024,
+        'tmp_name' => '/tmp/upload1',
+        'error' => 0,
+    ]),
+    'banner' => FileUpload::create([
+        'name' => 'banner.png',
+        'type' => 'image/png', 
+        'size' => 2048,
+        'tmp_name' => '/tmp/upload2',
+        'error' => 0,
+    ]),
+    'documents' => [
+        FileUpload::create([
+            'name' => 'spec.pdf',
+            'type' => 'application/pdf',
+            'size' => 5120,
+            'tmp_name' => '/tmp/upload3',
+            'error' => 0,
+        ]),
+        FileUpload::create([
+            'name' => 'readme.txt',
+            'type' => 'text/plain',
+            'size' => 256,
+            'tmp_name' => '/tmp/upload4',
+            'error' => 0,
+        ]),
+    ]
+];
+
+$fileExample = $inputQuery->create(FileUploadExample::class, $fileUploadData);
+echo $fileExample->getUploadSummary() . "\n";
+
+echo "🌟 HTML Form Mapping Examples\n";
+echo "=============================\n";
+echo "<!-- Single file -->\n";
+echo '<input type="file" name="avatar" required>' . "\n";
+echo "↓ Maps to: #[InputFile] FileUpload \$avatar\n\n";
+
+echo "<!-- Multiple files -->\n";
+echo '<input type="file" name="documents[]" multiple>' . "\n";
+echo "↓ Maps to: #[InputFile] array \$documents\n\n";
+
+echo "<!-- Optional file -->\n";
+echo '<input type="file" name="banner">' . "\n";
+echo "↓ Maps to: #[InputFile] ?FileUpload \$banner = null\n\n";
+
+echo "🏗️ Factory Pattern Benefits\n";
+echo "===========================\n";
+echo "✅ Clean dependency injection with FileUploadFactoryInterface\n";
+echo "✅ Separated concerns: create() for single, createMultiple() for arrays\n";
+echo "✅ Type-safe array keys with FileUploadKey (int|string)\n";
+echo "✅ Optimized for BEAR.Resource compilation caching\n";
+echo "✅ 100% test coverage maintained\n\n";
 
 echo "Demo completed successfully! 🎉\n";

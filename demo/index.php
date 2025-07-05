@@ -6,7 +6,10 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use Ray\Di\AbstractModule;
 use Ray\Di\Injector;
+use Ray\InputQuery\FileUploadFactory;
+use Ray\InputQuery\FileUploadFactoryInterface;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
@@ -113,6 +116,16 @@ final class FileUploadController
     
 }
 
+// Setup dependency injection with FileUploadFactoryInterface
+$injector = new Injector(new class extends AbstractModule {
+    protected function configure(): void
+    {
+        $this->bind(FileUploadFactoryInterface::class)->to(FileUploadFactory::class);
+    }
+});
+
+$inputQuery = new InputQuery($injector, $injector->getInstance(FileUploadFactoryInterface::class));
+
 // Handle form submissions
 $controller = new FileUploadController();
 $result = null;
@@ -122,15 +135,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             switch ($_POST['action']) {
                 case 'profile':
-                    $inputQuery = new InputQuery(new Injector());
                     $method = new ReflectionMethod($controller, 'handleUserProfile');
                     $args = $inputQuery->getArguments($method, $_POST);
                     $result = $method->invokeArgs($controller, $args);
                     break;
                     
                 case 'gallery':
-                    // Using invokeArgs() method
-                    $inputQuery = new InputQuery(new Injector());
                     $method = new ReflectionMethod($controller, 'handleGallery');
                     $args = $inputQuery->getArguments($method, $_POST);
                     $result = $method->invokeArgs($controller, $args);
@@ -399,18 +409,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </ul>
         
         <div class="code-example">
-            <strong>Two Usage Patterns:</strong>
-            <pre><code>// Method 1: getArguments() + spread operator
-$inputQuery = new InputQuery(new Injector());
+            <strong>Setup with FileUploadFactoryInterface:</strong>
+            <pre><code>// Setup dependency injection
+$injector = new Injector(new class extends AbstractModule {
+    protected function configure(): void
+    {
+        $this->bind(FileUploadFactoryInterface::class)->to(FileUploadFactory::class);
+    }
+});
+
+$inputQuery = new InputQuery($injector, $injector->getInstance(FileUploadFactoryInterface::class));
+
+// Usage patterns:
+// Method 1: getArguments() + invokeArgs()
 $method = new ReflectionMethod($controller, 'handleUserProfile');
 $args = $inputQuery->getArguments($method, $_POST);
-$result = $controller->handleUserProfile(...$args);
-
-// Method 2: invokeArgs() for more dynamic calls
 $result = $method->invokeArgs($controller, $args);
 
-// Method 3: Direct object creation
+// Method 2: Direct object creation
 $input = $inputQuery->create(UserProfileInput::class, $_POST);</code></pre>
+        </div>
+        
+        <div class="code-example">
+            <strong>🎯 HTML-to-PHP Mapping Examples:</strong>
+            <pre><code><!-- Single file upload -->
+&lt;input type="file" name="avatar" required&gt;
+↓ Maps to: #[InputFile] FileUpload $avatar
+
+<!-- Multiple file upload -->
+&lt;input type="file" name="images[]" multiple&gt;
+↓ Maps to: #[InputFile] array $images
+
+<!-- Optional file upload -->
+&lt;input type="file" name="banner"&gt;
+↓ Maps to: #[InputFile] ?FileUpload $banner = null
+
+<!-- File upload with validation -->
+&lt;input type="file" name="document" accept=".pdf"&gt;
+↓ Maps to: #[InputFile(allowedExtensions: ['pdf'])] FileUpload $document</code></pre>
         </div>
     </div>
 </body>

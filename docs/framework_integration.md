@@ -13,21 +13,24 @@ This guide shows how to integrate Ray.InputQuery with popular PHP frameworks.
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\FileUploadFactory;
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use ReflectionMethod;
 
 final class UserController extends Controller
 {
     public function store(Request $request)
     {
         $injector = new Injector();
-        $inputQuery = new InputQuery($injector);
+        $inputQuery = new InputQuery($injector, new FileUploadFactory());
         
-        $method = new \ReflectionMethod($this, 'createUser');
+        $method = new ReflectionMethod($this, 'createUser');
         $args = $inputQuery->getArguments($method, $request->all());
         
         return $this->createUser(...$args);
@@ -42,7 +45,7 @@ final class UserController extends Controller
         )] FileUpload|ErrorFileUpload $avatar,
     ): array {
         if ($avatar instanceof ErrorFileUpload) {
-            throw new \InvalidArgumentException($avatar->message);
+            throw new InvalidArgumentException($avatar->message);
         }
         
         $avatarPath = $avatar->move(storage_path('app/public/avatars'));
@@ -65,13 +68,14 @@ use Illuminate\Support\ServiceProvider;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\InputQueryInterface;
+use Ray\InputQuery\FileUploadFactory;
 
 class InputQueryServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->singleton(InputQueryInterface::class, function () {
-            return new InputQuery(new Injector());
+            return new InputQuery(new Injector(), new FileUploadFactory());
         });
     }
 }
@@ -90,21 +94,24 @@ namespace App\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use InvalidArgumentException;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\FileUploadFactory;
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use ReflectionMethod;
 
 class UserController extends AbstractController
 {
     public function create(Request $request): JsonResponse
     {
         $injector = new Injector();
-        $inputQuery = new InputQuery($injector);
+        $inputQuery = new InputQuery($injector, new FileUploadFactory());
         
-        $method = new \ReflectionMethod($this, 'handleUserCreation');
+        $method = new ReflectionMethod($this, 'handleUserCreation');
         $args = $inputQuery->getArguments($method, $request->request->all());
         
         $result = $this->handleUserCreation(...$args);
@@ -118,7 +125,7 @@ class UserController extends AbstractController
         #[InputFile(maxSize: 5 * 1024 * 1024)] FileUpload|ErrorFileUpload|null $avatar = null,
     ): array {
         if ($avatar instanceof ErrorFileUpload) {
-            throw new \InvalidArgumentException($avatar->message);
+            throw new InvalidArgumentException($avatar->message);
         }
         
         $avatarPath = null;
@@ -157,12 +164,15 @@ services:
 namespace App\Controller;
 
 use Cake\Controller\Controller;
+use InvalidArgumentException;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\FileUploadFactory;
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use ReflectionMethod;
 
 class UsersController extends Controller
 {
@@ -170,9 +180,9 @@ class UsersController extends Controller
     {
         if ($this->request->is('post')) {
             $injector = new Injector();
-            $inputQuery = new InputQuery($injector);
+            $inputQuery = new InputQuery($injector, new FileUploadFactory());
             
-            $method = new \ReflectionMethod($this, 'processUserData');
+            $method = new ReflectionMethod($this, 'processUserData');
             $args = $inputQuery->getArguments($method, $this->request->getData());
             
             $result = $this->processUserData(...$args);
@@ -188,7 +198,7 @@ class UsersController extends Controller
         #[InputFile] FileUpload|ErrorFileUpload|null $profile_picture = null,
     ): array {
         if ($profile_picture instanceof ErrorFileUpload) {
-            throw new \InvalidArgumentException($profile_picture->message);
+            throw new InvalidArgumentException($profile_picture->message);
         }
         
         $picturePath = null;
@@ -258,8 +268,12 @@ class User extends ResourceObject
 
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
-use Ray\InputQuery\Attribute\InputQuery;
+use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
 use Ray\Di\Injector;
+use Koriym\FileUpload\FileUpload;
+use Koriym\FileUpload\ErrorFileUpload;
+use ReflectionMethod;
 
 class UserController extends CController
 {
@@ -267,7 +281,7 @@ class UserController extends CController
     {
         if (Yii::app()->request->isPostRequest) {
             $injector = new Injector();
-            $inputQuery = new Query($injector);
+            $inputQuery = new InputQuery($injector, new FileUploadFactory());
             
             $method = new ReflectionMethod($this, 'handleUserCreation');
             $postData = array_merge($_POST, $_FILES);
@@ -285,9 +299,9 @@ class UserController extends CController
         #[InputFile(
             maxSize: 5 * 1024 * 1024,
             allowedTypes: ['image/jpeg', 'image/png']
-        )] Koriym\FileUpload\FileUpload|Koriym\FileUpload\ErrorFileUpload $avatar,
+        )] FileUpload|ErrorFileUpload $avatar,
     ): array {
-        if ($avatar instanceof Koriym\FileUpload\ErrorFileUpload) {
+        if ($avatar instanceof ErrorFileUpload) {
             throw new CHttpException(400, $avatar->message);
         }
         
@@ -337,6 +351,11 @@ return array(
 // protected/extensions/inputquery/InputQueryComponent.php
 <?php
 
+use Ray\Di\Injector;
+use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
+use ReflectionMethod;
+
 class InputQueryComponent extends CComponent
 {
     private $inputQuery;
@@ -344,8 +363,8 @@ class InputQueryComponent extends CComponent
     public function init()
     {
         parent::init();
-        $injector = new Ray\Di\Injector();
-        $this->inputQuery = new Ray\InputQuery\InputQuery($injector);
+        $injector = new Injector();
+        $this->inputQuery = new InputQuery($injector, new FileUploadFactory());
     }
     
     public function createInput($className, $data)
@@ -395,8 +414,8 @@ public function actionCreate()
 {
     if (Yii::app()->request->isPostRequest) {
         try {
-            $injector = new Ray\Di\Injector();
-            $inputQuery = new Ray\InputQuery\InputQuery($injector);
+            $injector = new Injector();
+            $inputQuery = new InputQuery($injector, new FileUploadFactory());
             
             $method = new ReflectionMethod($this, 'handleUserCreation');
             $args = $inputQuery->getArguments($method, $_POST);
@@ -424,21 +443,24 @@ public function actionCreate()
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use InvalidArgumentException;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
+use Ray\InputQuery\FileUploadFactory;
 use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use ReflectionMethod;
 
 class UserController
 {
     public function create(Request $request, Response $response): Response
     {
         $injector = new Injector();
-        $inputQuery = new InputQuery($injector);
+        $inputQuery = new InputQuery($injector, new FileUploadFactory());
         
-        $method = new \ReflectionMethod($this, 'handleUserCreation');
+        $method = new ReflectionMethod($this, 'handleUserCreation');
         $args = $inputQuery->getArguments($method, $request->getParsedBody() ?? []);
         
         $result = $this->handleUserCreation(...$args);
@@ -453,7 +475,7 @@ class UserController
         #[InputFile] FileUpload|ErrorFileUpload|null $avatar = null,
     ): array {
         if ($avatar instanceof ErrorFileUpload) {
-            throw new \InvalidArgumentException($avatar->message);
+            throw new InvalidArgumentException($avatar->message);
         }
         
         $avatarPath = null;
@@ -481,7 +503,9 @@ class UserController
 use PHPUnit\Framework\TestCase;
 use Ray\Di\Injector;
 use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
 use Koriym\FileUpload\FileUpload;
+use ReflectionMethod;
 
 class UserControllerTest extends TestCase
 {
@@ -489,13 +513,13 @@ class UserControllerTest extends TestCase
     
     protected function setUp(): void
     {
-        $this->inputQuery = new InputQuery(new Injector());
+        $this->inputQuery = new InputQuery(new Injector(), new FileUploadFactory());
     }
     
     public function testUserCreationWithFileUpload(): void
     {
         $controller = new UserController();
-        $method = new \ReflectionMethod($controller, 'handleUserCreation');
+        $method = new ReflectionMethod($controller, 'handleUserCreation');
         
         $mockAvatar = FileUpload::fromFile(__DIR__ . '/fixtures/test.jpg');
         
@@ -519,7 +543,7 @@ class UserControllerTest extends TestCase
 ### 1. Method Reflection Pattern
 
 ```php
-$method = new \ReflectionMethod($controller, 'methodName');
+$method = new ReflectionMethod($controller, 'methodName');
 $args = $inputQuery->getArguments($method, $requestData);
 $result = $method->invokeArgs($controller, $args);
 ```
