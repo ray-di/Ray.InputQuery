@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
-use InvalidArgumentException;
 use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
-use ReflectionUnionType;
 
 use const UPLOAD_ERR_NO_FILE;
 use const UPLOAD_ERR_OK;
@@ -57,7 +55,7 @@ final class FileUploadFactoryTest extends TestCase
 
         $result = $this->factory->createFromFiles($param, $filesData);
 
-        $this->assertNull($result);
+        $this->assertInstanceOf(ErrorFileUpload::class, $result);
     }
 
     public function testCreateFromFilesWithErrorFile(): void
@@ -75,68 +73,23 @@ final class FileUploadFactoryTest extends TestCase
             ],
         ];
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Required file parameter 'upload' is missing");
+        $result = $this->factory->createFromFiles($param, $filesData);
 
-        $this->factory->createFromFiles($param, $filesData);
+        $this->assertInstanceOf(ErrorFileUpload::class, $result);
     }
 
-    public function testResolveFileUploadUnionTypeWithValidUnion(): void
+    public function testCreateMultipleWithEmptyQuery(): void
     {
-        $method = new ReflectionMethod($this, 'dummyMethodForUnionType');
+        $method = new ReflectionMethod($this, 'dummyMethodForArrayFileUpload');
         $param = $method->getParameters()[0];
-        $unionType = $param->getType();
 
-        $this->assertInstanceOf(ReflectionUnionType::class, $unionType);
-
-        $query = [
-            'upload' => FileUpload::create([
-                'name' => 'test.txt',
-                'type' => 'text/plain',
-                'size' => 100,
-                'tmp_name' => '/tmp/test',
-                'error' => UPLOAD_ERR_OK,
-            ]),
-        ];
-
-        $result = $this->factory->resolveFileUploadUnionType($param, $query, $unionType);
-
-        $this->assertInstanceOf(FileUpload::class, $result);
-    }
-
-    public function testResolveFileUploadUnionTypeWithInvalidUnion(): void
-    {
-        $method = new ReflectionMethod($this, 'dummyMethodForInvalidUnionType');
-        $param = $method->getParameters()[0];
-        $unionType = $param->getType();
-
-        $this->assertInstanceOf(ReflectionUnionType::class, $unionType);
-
-        $query = [];
-
-        $result = $this->factory->resolveFileUploadUnionType($param, $query, $unionType);
-
-        $this->assertNull($result);
-    }
-
-    public function testIsFileUploadType(): void
-    {
-        $this->assertTrue($this->factory->isFileUploadType(FileUpload::class));
-        $this->assertTrue($this->factory->isFileUploadType(ErrorFileUpload::class));
-        $this->assertFalse($this->factory->isFileUploadType('stdClass'));
-        $this->assertFalse($this->factory->isFileUploadType('NonExistentClass'));
-    }
-
-    public function testCreateArrayWithEmptyQuery(): void
-    {
-        $inputFileAttributes = [];
-        $result = $this->factory->createArray('uploads', [], $inputFileAttributes);
+        $result = $this->factory->createMultiple($param, [], null);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
     }
 
-    public function testCreateArrayWithProvidedFileUploads(): void
+    public function testCreateMultipleWithProvidedFileUploads(): void
     {
         $fileUploads = [
             FileUpload::create([
@@ -156,37 +109,45 @@ final class FileUploadFactoryTest extends TestCase
         ];
 
         $query = ['uploads' => $fileUploads];
-        $inputFileAttributes = [];
 
-        $result = $this->factory->createArray('uploads', $query, $inputFileAttributes);
+        $method = new ReflectionMethod($this, 'dummyMethodForArrayFileUpload');
+        $param = $method->getParameters()[0];
+
+        $result = $this->factory->createMultiple($param, $query, null);
 
         $this->assertIsArray($result);
         $this->assertCount(2, $result);
         $this->assertSame($fileUploads, $result);
     }
 
-    public function testCreateWithUnsupportedUnionType(): void
+    public function testCreateWithFileUpload(): void
     {
-        $method = new ReflectionMethod($this, 'dummyMethodForInvalidUnionType');
+        $method = new ReflectionMethod($this, 'dummyMethodForFileUpload');
         $param = $method->getParameters()[0];
-        $inputFileAttributes = [];
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported union type for file upload parameter');
+        $query = [
+            'upload' => FileUpload::create([
+                'name' => 'test.txt',
+                'type' => 'text/plain',
+                'size' => 100,
+                'tmp_name' => '/tmp/test',
+                'error' => UPLOAD_ERR_OK,
+            ]),
+        ];
 
-        $this->factory->create($param, [], $inputFileAttributes);
+        $result = $this->factory->create($param, $query, null);
+
+        $this->assertInstanceOf(FileUpload::class, $result);
     }
 
-    public function testCreateWithInvalidParameterType(): void
+    public function testCreateWithMissingFile(): void
     {
-        $method = new ReflectionMethod($this, 'dummyMethodForInvalidParameterType');
+        $method = new ReflectionMethod($this, 'dummyMethodForFileUpload');
         $param = $method->getParameters()[0];
-        $inputFileAttributes = [];
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Parameter invalidParam is not a valid file upload parameter');
+        $result = $this->factory->create($param, [], null);
 
-        $this->factory->create($param, [], $inputFileAttributes);
+        $this->assertInstanceOf(ErrorFileUpload::class, $result);
     }
 
     /**
@@ -213,6 +174,11 @@ final class FileUploadFactoryTest extends TestCase
     }
 
     public function dummyMethodForInvalidParameterType(string $invalidParam): void
+    {
+    }
+
+    /** @param array<mixed> $uploads */
+    public function dummyMethodForArrayFileUpload(array $uploads): void
     {
     }
 }
