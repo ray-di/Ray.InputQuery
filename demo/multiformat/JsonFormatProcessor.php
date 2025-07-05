@@ -26,7 +26,16 @@ final class JsonFormatProcessor implements FormatProcessorInterface
 
     public function process(FileUpload $file, array $options = []): array
     {
+        // Check file size to prevent memory issues
+        if ($file->size > 50 * 1024 * 1024) { // 50MB limit for JSON
+            throw new \RuntimeException('JSON file too large for processing');
+        }
+
         $content = file_get_contents($file->tmp_name);
+        if ($content === false) {
+            throw new \RuntimeException('Failed to read file content');
+        }
+
         $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
 
         $items = is_array($data) ? $data : [$data];
