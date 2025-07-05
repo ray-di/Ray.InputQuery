@@ -31,7 +31,7 @@ final class FileUploadExample
         }
         
         $summary .= "Documents: " . count($this->documents) . " files\n";
-        foreach ($this->documents as $i => $doc) {
+        foreach ($this->documents as $doc) {
             $summary .= "  - {$doc->name} ({$doc->size} bytes)\n";
         }
         
