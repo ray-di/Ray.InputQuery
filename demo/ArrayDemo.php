@@ -15,7 +15,7 @@ final class User
         #[Input]
         public readonly string $id,
         #[Input]
-        public readonly string $name
+        public readonly string $name,
     ) {
     }
 }
@@ -25,17 +25,17 @@ final class UserController
 {
     public function listUsers(
         #[Input(item: User::class)]
-        array $users
+        array $users,
     ): void {
         echo "Array of users:\n";
         foreach ($users as $index => $user) {
             echo "  [$index] ID: {$user->id}, Name: {$user->name}\n";
         }
     }
-    
+
     public function listUsersAsArrayObject(
         #[Input(item: User::class)]
-        ArrayObject $users
+        ArrayObject $users,
     ): void {
         echo "\nArrayObject of users:\n";
         foreach ($users as $index => $user) {
@@ -53,8 +53,8 @@ $query = [
     'users' => [
         ['id' => '1', 'name' => 'jingu'],
         ['id' => '2', 'name' => 'horikawa'],
-        ['id' => '3', 'name' => 'tanaka']
-    ]
+        ['id' => '3', 'name' => 'tanaka'],
+    ],
 ];
 
 $controller = new UserController();

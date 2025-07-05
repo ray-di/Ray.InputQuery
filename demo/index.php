@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Koriym\FileUpload\FileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
+use Koriym\FileUpload\FileUpload;
 use Ray\Di\AbstractModule;
 use Ray\Di\Injector;
+use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Attribute\InputFile;
 use Ray\InputQuery\FileUploadFactory;
 use Ray\InputQuery\FileUploadFactoryInterface;
 use Ray\InputQuery\InputQuery;
-use Ray\InputQuery\Attribute\Input;
-use Ray\InputQuery\Attribute\InputFile;
 
 // Note: In a production environment, the FileUpload library would handle
 // file uploads based on the environment (traditional PHP, Swoole, etc.)
@@ -27,27 +27,31 @@ final class FileUploadController
     {
         // Create uploads directory if it doesn't exist
         $uploadsDir = __DIR__ . '/uploads';
-        if (!is_dir($uploadsDir)) {
+        if (! is_dir($uploadsDir)) {
             mkdir($uploadsDir, 0755, true);
         }
     }
-    
+
     public function handleUserProfile(
-        #[Input] string $name,
-        #[Input] string $email,
+        #[Input]
+        string $name,
+        #[Input]
+        string $email,
         #[InputFile(
             maxSize: 2 * 1024 * 1024,  // 2MB
-            allowedTypes: ['image/jpeg', 'image/png', 'image/gif']
-        )] FileUpload|ErrorFileUpload $avatar,
-        #[InputFile] FileUpload|ErrorFileUpload|null $banner = null,
+            allowedTypes: ['image/jpeg', 'image/png', 'image/gif'],
+        )]
+        FileUpload|ErrorFileUpload $avatar,
+        #[InputFile]
+        FileUpload|ErrorFileUpload|null $banner = null,
     ): array {
         try {
             $results = [
                 'name' => $name,
                 'email' => $email,
-                'success' => true
+                'success' => true,
             ];
-            
+
             // Handle avatar upload
             if ($avatar instanceof FileUpload) {
                 $avatarPath = 'uploads/avatar_' . time() . '_' . $avatar->name;
@@ -59,7 +63,7 @@ final class FileUploadController
             } elseif ($avatar instanceof ErrorFileUpload) {
                 $results['avatar_error'] = $avatar->message;
             }
-            
+
             // Handle optional banner upload
             if ($banner instanceof FileUpload) {
                 $bannerPath = 'uploads/banner_' . time() . '_' . $banner->name;
@@ -71,28 +75,29 @@ final class FileUploadController
             } elseif ($banner instanceof ErrorFileUpload) {
                 $results['banner_error'] = $banner->message;
             }
-            
+
             return $results;
-            
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return ['error' => $e->getMessage()];
         }
     }
-    
+
     public function handleGallery(
-        #[Input] string $title,
+        #[Input]
+        string $title,
         #[InputFile(
             maxSize: 1 * 1024 * 1024,  // 1MB per file
-            allowedTypes: ['image/jpeg', 'image/png']
-        )] array $images,
+            allowedTypes: ['image/jpeg', 'image/png'],
+        )]
+        array $images,
     ): array {
         try {
             $results = [
                 'title' => $title,
                 'images' => [],
-                'errors' => []
+                'errors' => [],
             ];
-            
+
             foreach ($images as $index => $image) {
                 if ($image instanceof FileUpload) {
                     $imagePath = 'uploads/gallery_' . $index . '_' . time() . '_' . $image->name;
@@ -105,15 +110,14 @@ final class FileUploadController
                     $results['errors'][] = "Image {$index}: " . $image->message;
                 }
             }
-            
+
             $results['success'] = true;
+
             return $results;
-            
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return ['error' => $e->getMessage()];
         }
     }
-    
 }
 
 // Setup dependency injection with FileUploadFactoryInterface
@@ -139,14 +143,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $args = $inputQuery->getArguments($method, $_POST);
                     $result = $method->invokeArgs($controller, $args);
                     break;
-                    
+
                 case 'gallery':
                     $method = new ReflectionMethod($controller, 'handleGallery');
                     $args = $inputQuery->getArguments($method, $_POST);
                     $result = $method->invokeArgs($controller, $args);
                     break;
             }
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $result = ['error' => $e->getMessage()];
         }
     }
@@ -282,13 +286,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h1>Ray.InputQuery File Upload Demo</h1>
         <p class="subtitle">File upload integration with Koriym.FileUpload</p>
         
-        <?php if ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
+        <?php if ($_SERVER['REQUEST_METHOD'] === 'POST') : ?>
             <div class="result">
                 <strong>Debug Info:</strong>
                 <pre>$_POST: <?= htmlspecialchars(json_encode($_POST, JSON_PRETTY_PRINT)) ?></pre>
                 <pre>$_FILES: <?= htmlspecialchars(json_encode($_FILES, JSON_PRETTY_PRINT)) ?></pre>
                 
-                <?php 
+                <?php
                 // Capture any error logs during processing
                 ob_start();
                 ?>
@@ -297,11 +301,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
         
-        <?php if ($result): ?>
+        <?php if ($result) : ?>
             <div class="result <?= isset($result['error']) ? 'error' : '' ?>">
-                <?php if (isset($result['error'])): ?>
+                <?php if (isset($result['error'])) : ?>
                     <strong>Error:</strong> <?= htmlspecialchars($result['error']) ?>
-                <?php elseif (isset($result['success'])): ?>
+                <?php elseif (isset($result['success'])) : ?>
                     <strong>Success!</strong> Files uploaded successfully.
                     <pre><?= htmlspecialchars(json_encode($result, JSON_PRETTY_PRINT)) ?></pre>
                 <?php endif; ?>

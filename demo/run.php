@@ -30,7 +30,7 @@ $injector = new Injector(new class extends AbstractModule {
     }
 });
 
-$inputQuery = new InputQuery($injector, $injector->getInstance(FileUploadFactoryInterface::class));
+$inputQuery = new InputQuery($injector, new FileUploadFactory());
 
 echo "1. Simple User Profile Creation\n";
 echo "================================\n";
@@ -41,7 +41,7 @@ $userFormData = [
     'email' => 'john@example.com',
     'age' => '30',
     'bio' => 'Full-stack developer passionate about clean code',
-    'isPublic' => '1'
+    'isPublic' => '1',
 ];
 
 $userProfile = $inputQuery->create(UserProfile::class, $userFormData);
@@ -58,7 +58,7 @@ $blogFormData = [
     'published' => '1',
     'authorName' => 'Jane Smith',
     'authorEmail' => 'jane@example.com',
-    'authorId' => 'user123'
+    'authorId' => 'user123',
 ];
 
 $blogPost = $inputQuery->create(BlogPost::class, $blogFormData);
@@ -90,13 +90,13 @@ $scalarData = [
     'name' => 'Test User',
     'email' => 'test@example.com',
     'age' => '25',        // string -> int
-    'isPublic' => 'true'  // string -> bool
+    'isPublic' => 'true',  // string -> bool
 ];
 
 $profile = $inputQuery->create(UserProfile::class, $scalarData);
 echo "Converted types:\n";
-echo "- age (string '25' -> int): " . var_export($profile->age, true) . " (" . gettype($profile->age) . ")\n";
-echo "- isPublic (string 'true' -> bool): " . var_export($profile->isPublic, true) . " (" . gettype($profile->isPublic) . ")\n\n";
+echo "- age (string '25' -> int): " . var_export($profile->age, true) . ' (' . gettype($profile->age) . ")\n";
+echo "- isPublic (string 'true' -> bool): " . var_export($profile->isPublic, true) . ' (' . gettype($profile->isPublic) . ")\n\n";
 
 echo "5. Default Values\n";
 echo "=================\n";
@@ -104,7 +104,7 @@ echo "=================\n";
 // Minimal data - other fields will use defaults
 $minimalData = [
     'name' => 'Minimal User',
-    'email' => 'minimal@example.com'
+    'email' => 'minimal@example.com',
 ];
 
 $minimalProfile = $inputQuery->create(UserProfile::class, $minimalData);
@@ -120,7 +120,7 @@ $snakeCaseData = [
     'content' => 'Testing snake_case to camelCase conversion',
     'author_name' => 'Snake Author',     // author_name -> authorName
     'author_email' => 'snake@example.com', // author_email -> authorEmail
-    'author_id' => 'snake123'           // author_id -> authorId
+    'author_id' => 'snake123',           // author_id -> authorId
 ];
 
 $snakeCasePost = $inputQuery->create(BlogPost::class, $snakeCaseData);
@@ -142,7 +142,7 @@ $fileUploadData = [
     ]),
     'banner' => FileUpload::create([
         'name' => 'banner.png',
-        'type' => 'image/png', 
+        'type' => 'image/png',
         'size' => 2048,
         'tmp_name' => '/tmp/upload2',
         'error' => 0,
@@ -162,7 +162,7 @@ $fileUploadData = [
             'tmp_name' => '/tmp/upload4',
             'error' => 0,
         ]),
-    ]
+    ],
 ];
 
 $fileExample = $inputQuery->create(FileUploadExample::class, $fileUploadData);

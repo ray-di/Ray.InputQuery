@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<products>
+    <product>
+        <id>1</id>
+        <name>Laptop Computer</name>
+        <price>999.99</price>
+        <category>Electronics</category>
+        <in_stock>true</in_stock>
+    </product>
+    <product>
+        <id>2</id>
+        <name>Office Chair</name>
+        <price>249.50</price>
+        <category>Furniture</category>
+        <in_stock>true</in_stock>
+    </product>
+    <product>
+        <id>3</id>
+        <name>Coffee Mug</name>
+        <price>12.99</price>
+        <category>Kitchen</category>
+        <in_stock>false</in_stock>
+    </product>
+    <product>
+        <id>4</id>
+        <name>Programming Book</name>
+        <price>39.99</price>
+        <category>Books</category>
+        <in_stock>true</in_stock>
+    </product>
+</products>

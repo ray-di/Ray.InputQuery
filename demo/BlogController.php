@@ -16,28 +16,31 @@ final class ConsoleLogger implements LoggerInterface
 {
     public function log(string $message): void
     {
-        echo "[LOG] " . $message . "\n";
+        echo '[LOG] ' . $message . "\n";
     }
 }
 
 final class BlogController
 {
     public function createPost(
-        #[Input] BlogPost $post,
+        #[Input]
+        BlogPost $post,
         ConsoleLogger $logger,
-        #[Named('app.version')] string $version
+        #[Named('app.version')]
+        string $version,
     ): string {
         $logger->log("Creating blog post: {$post->title} (App v{$version})");
-        
+
         return "Blog post created successfully!\n\n" . $post->getPostSummary();
     }
-    
+
     public function updateProfile(
-        #[Input] UserProfile $profile,
-        ConsoleLogger $logger
+        #[Input]
+        UserProfile $profile,
+        ConsoleLogger $logger,
     ): string {
         $logger->log("Updating user profile: {$profile->name}");
-        
+
         return "Profile updated successfully!\n\n" . $profile->getDisplayInfo();
     }
 }

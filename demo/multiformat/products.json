@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "Smartphone",
+    "price": 699.99,
+    "category": "Electronics",
+    "in_stock": true,
+    "features": ["5G", "Water Resistant", "Wireless Charging"]
+  },
+  {
+    "id": 2,
+    "name": "Desk Lamp",
+    "price": 89.99,
+    "category": "Furniture",
+    "in_stock": true,
+    "features": ["LED", "Adjustable", "USB Charging Port"]
+  },
+  {
+    "id": 3,
+    "name": "Running Shoes",
+    "price": 129.99,
+    "category": "Sports",
+    "in_stock": false,
+    "features": ["Breathable", "Lightweight", "Non-slip"]
+  }
+]

@@ -6,22 +6,31 @@ namespace Ray\InputQuery\Demo;
 
 use Ray\InputQuery\Attribute\Input;
 
+use function sprintf;
+use function substr;
+
 final class BlogPost
 {
     public function __construct(
-        #[Input] public readonly string $title,
-        #[Input] public readonly string $content,
-        #[Input] public readonly Author $author,
-        #[Input] public readonly ?string $category = null,
-        #[Input] public readonly bool $published = false
-    ) {}
+        #[Input]
+        public readonly string $title,
+        #[Input]
+        public readonly string $content,
+        #[Input]
+        public readonly Author $author,
+        #[Input]
+        public readonly string|null $category = null,
+        #[Input]
+        public readonly bool $published = false,
+    ) {
+    }
 
     public function getPostSummary(): string
     {
         $status = $this->published ? 'Published' : 'Draft';
         $category = $this->category ?? 'Uncategorized';
         $preview = substr($this->content, 0, 100) . '...';
-        
+
         return sprintf(
             "Title: %s\nAuthor: %s <%s>\nCategory: %s\nStatus: %s\nPreview: %s",
             $this->title,
@@ -29,7 +38,7 @@ final class BlogPost
             $this->author->email,
             $category,
             $status,
-            $preview
+            $preview,
         );
     }
 }
@@ -37,8 +46,12 @@ final class BlogPost
 final class Author
 {
     public function __construct(
-        #[Input] public readonly string $name,
-        #[Input] public readonly string $email,
-        #[Input] public readonly string $id = 'unknown'
-    ) {}
+        #[Input]
+        public readonly string $name,
+        #[Input]
+        public readonly string $email,
+        #[Input]
+        public readonly string $id = 'unknown',
+    ) {
+    }
 }
