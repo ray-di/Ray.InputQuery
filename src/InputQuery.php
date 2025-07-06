@@ -69,11 +69,13 @@ use const UPLOAD_ERR_NO_FILE;
  */
 final class InputQuery implements InputQueryInterface
 {
+    private FileUploadFactoryInterface $fileUploadFactory;
+
     public function __construct(
         private InjectorInterface $injector,
-        private FileUploadFactoryInterface|null $fileUploadFactory = null,
+        FileUploadFactoryInterface|null $fileUploadFactory = null,
     ) {
-        $this->fileUploadFactory ??= new FileUploadFactory();
+        $this->fileUploadFactory = $fileUploadFactory ?? new FileUploadFactory();
     }
 
     /**
