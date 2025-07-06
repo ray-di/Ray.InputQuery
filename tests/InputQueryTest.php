@@ -93,7 +93,7 @@ final class InputQueryTest extends TestCase
             'email' => 'john@example.com',
         ];
 
-        $user = $this->inputQuery->create(UserInput::class, $query);
+        $user = $this->inputQuery->newInstance(UserInput::class, $query);
 
         $this->assertInstanceOf(UserInput::class, $user);
         $this->assertSame('John', $user->name);
@@ -108,7 +108,7 @@ final class InputQueryTest extends TestCase
             'authorEmail' => 'john@example.com',
         ];
 
-        $todo = $this->inputQuery->create(TodoInput::class, $query);
+        $todo = $this->inputQuery->newInstance(TodoInput::class, $query);
 
         $this->assertInstanceOf(TodoInput::class, $todo);
         /** @var TodoInput $todo */
@@ -125,7 +125,7 @@ final class InputQueryTest extends TestCase
             'email' => 'jane@example.com',
         ];
 
-        $mixed = $this->inputQuery->create(MixedInput::class, $query);
+        $mixed = $this->inputQuery->newInstance(MixedInput::class, $query);
 
         $this->assertInstanceOf(MixedInput::class, $mixed);
         assert($mixed instanceof MixedInput);
@@ -162,7 +162,7 @@ final class InputQueryTest extends TestCase
             'author-email' => 'author@example.com', // kebab-case
         ];
 
-        $todo = $this->inputQuery->create(TodoInput::class, [
+        $todo = $this->inputQuery->newInstance(TodoInput::class, [
             'title' => 'Test',
             'author_name' => 'Author',
             'author_email' => 'author@example.com',
@@ -181,7 +181,7 @@ final class InputQueryTest extends TestCase
 
         // For now, this might throw exceptions, which is expected behavior
         $this->expectException(InvalidArgumentException::class);
-        $this->inputQuery->create(UserInput::class, $query);
+        $this->inputQuery->newInstance(UserInput::class, $query);
     }
 
     public function testIsInstanceOfInputQuery(): void
@@ -199,7 +199,7 @@ final class InputQueryTest extends TestCase
             'active' => '1',     // string -> bool
         ];
 
-        $scalar = $this->inputQuery->create(ScalarInput::class, $query);
+        $scalar = $this->inputQuery->newInstance(ScalarInput::class, $query);
 
         $this->assertInstanceOf(ScalarInput::class, $scalar);
         assert($scalar instanceof ScalarInput);
@@ -227,7 +227,7 @@ final class InputQueryTest extends TestCase
                 'active' => $case['active'],
             ];
 
-            $scalar = $this->inputQuery->create(ScalarInput::class, $query);
+            $scalar = $this->inputQuery->newInstance(ScalarInput::class, $query);
             assert($scalar instanceof ScalarInput);
             $this->assertSame($case['expected'], $scalar->active, "Failed for active='{$case['active']}'.");
         }
@@ -237,7 +237,7 @@ final class InputQueryTest extends TestCase
     {
         $query = ['name' => 'John']; // Other parameters should use defaults
 
-        $defaultInput = $this->inputQuery->create(DefaultValuesInput::class, $query);
+        $defaultInput = $this->inputQuery->newInstance(DefaultValuesInput::class, $query);
 
         assert($defaultInput instanceof DefaultValuesInput);
         $this->assertSame('John', $defaultInput->name);
@@ -256,7 +256,7 @@ final class InputQueryTest extends TestCase
             // active and score should use defaults
         ];
 
-        $defaultInput = $this->inputQuery->create(DefaultValuesInput::class, $query);
+        $defaultInput = $this->inputQuery->newInstance(DefaultValuesInput::class, $query);
 
         assert($defaultInput instanceof DefaultValuesInput);
         $this->assertSame('Jane', $defaultInput->name);
@@ -270,7 +270,7 @@ final class InputQueryTest extends TestCase
     {
         $query = [];
 
-        $nullable = $this->inputQuery->create(NullableInput::class, $query);
+        $nullable = $this->inputQuery->newInstance(NullableInput::class, $query);
 
         assert($nullable instanceof NullableInput);
         $this->assertNull($nullable->name);
@@ -286,7 +286,7 @@ final class InputQueryTest extends TestCase
             'active' => null,
         ];
 
-        $nullable = $this->inputQuery->create(NullableInput::class, $query);
+        $nullable = $this->inputQuery->newInstance(NullableInput::class, $query);
 
         assert($nullable instanceof NullableInput);
         $this->assertNull($nullable->name);
@@ -298,7 +298,7 @@ final class InputQueryTest extends TestCase
     {
         $query = ['name' => 'test'];
 
-        $noConstructor = $this->inputQuery->create(NoConstructorInput::class, $query);
+        $noConstructor = $this->inputQuery->newInstance(NoConstructorInput::class, $query);
 
         $this->assertInstanceOf(NoConstructorInput::class, $noConstructor);
         $this->assertSame('default', $noConstructor->name);
@@ -314,7 +314,7 @@ final class InputQueryTest extends TestCase
         ];
 
         // Create a TodoInput where author should be mapped from author prefix
-        $todo = $this->inputQuery->create(TodoInput::class, $query);
+        $todo = $this->inputQuery->newInstance(TodoInput::class, $query);
 
         assert($todo instanceof TodoInput);
         $this->assertSame('Main Task', $todo->title);
@@ -332,7 +332,7 @@ final class InputQueryTest extends TestCase
             'email' => 'direct@example.com',
         ];
 
-        $todo = $this->inputQuery->create(TodoInput::class, $query);
+        $todo = $this->inputQuery->newInstance(TodoInput::class, $query);
 
         assert($todo instanceof TodoInput);
         $this->assertSame('Task without prefix', $todo->title);
@@ -369,7 +369,7 @@ final class InputQueryTest extends TestCase
             'name' => 'union',
         ];
 
-        $union = $this->inputQuery->create(UnionTypeInput::class, $query);
+        $union = $this->inputQuery->newInstance(UnionTypeInput::class, $query);
 
         $this->assertInstanceOf(UnionTypeInput::class, $union);
         assert($union instanceof UnionTypeInput);
@@ -381,7 +381,7 @@ final class InputQueryTest extends TestCase
     {
         $query = []; // Use defaults
 
-        $union = $this->inputQuery->create(UnionTypeInput::class, $query);
+        $union = $this->inputQuery->newInstance(UnionTypeInput::class, $query);
 
         $this->assertInstanceOf(UnionTypeInput::class, $union);
         assert($union instanceof UnionTypeInput);
@@ -412,7 +412,7 @@ final class InputQueryTest extends TestCase
             'active' => '1',
         ];
 
-        $scalar = $this->inputQuery->create(ScalarInput::class, $query);
+        $scalar = $this->inputQuery->newInstance(ScalarInput::class, $query);
 
         assert($scalar instanceof ScalarInput);
         // Ensure all types are converted correctly - values are tested in other methods
@@ -428,7 +428,7 @@ final class InputQueryTest extends TestCase
             'authorEmail' => 'john@example.com',
         ];
 
-        $todo = $this->inputQuery->create(TodoInput::class, [
+        $todo = $this->inputQuery->newInstance(TodoInput::class, [
             'title' => 'Test',
             ...$query,
         ]);
@@ -445,7 +445,7 @@ final class InputQueryTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Required parameter "name" is missing and has no default value');
 
-        $this->inputQuery->create(UserInput::class, ['email' => 'test@example.com']); // missing required 'name'
+        $this->inputQuery->newInstance(UserInput::class, ['email' => 'test@example.com']); // missing required 'name'
     }
 
     public function testNonNamedTypeParameter(): void
@@ -1045,7 +1045,7 @@ final class InputQueryTest extends TestCase
 
         // Use existing InputFileInput class that has #[InputFile] attribute
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileInput::class, $query);
 
         $this->assertInstanceOf(InputFileInput::class, $input);
         $this->assertInstanceOf(FileUpload::class, $input->avatar);
@@ -1115,7 +1115,7 @@ final class InputQueryTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(NullableFileInput::class, $query);
+        $input = $this->inputQuery->newInstance(NullableFileInput::class, $query);
 
         $this->assertInstanceOf(NullableFileInput::class, $input);
         $this->assertNull($input->avatar); // Should be null for nullable parameter
@@ -1133,7 +1133,7 @@ final class InputQueryTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(DefaultFileInput::class, $query);
+        $input = $this->inputQuery->newInstance(DefaultFileInput::class, $query);
 
         $this->assertInstanceOf(DefaultFileInput::class, $input);
         $this->assertNull($input->avatar); // Should use default value (null)

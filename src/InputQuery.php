@@ -71,8 +71,9 @@ final class InputQuery implements InputQueryInterface
 {
     public function __construct(
         private InjectorInterface $injector,
-        private FileUploadFactoryInterface $fileUploadFactory,
+        private FileUploadFactoryInterface|null $fileUploadFactory = null,
     ) {
+        $this->fileUploadFactory ??= new FileUploadFactory();
     }
 
     /**
@@ -97,7 +98,7 @@ final class InputQuery implements InputQueryInterface
      * @return T
      */
     #[Override]
-    public function create(string $class, array $query): object
+    public function newInstance(string $class, array $query): object
     {
         $reflection = new ReflectionClass($class);
         $constructor = $reflection->getConstructor();
@@ -271,7 +272,7 @@ final class InputQuery implements InputQueryInterface
         assert(class_exists($className));
 
         /** @var class-string<T> $className */
-        return $this->create($className, $nestedQuery);
+        return $this->newInstance($className, $nestedQuery);
     }
 
     /**
@@ -477,7 +478,7 @@ final class InputQuery implements InputQueryInterface
             // Query parameters from HTTP requests have string keys
             /** @psalm-var array<string, mixed> $itemData */
             /** @phpstan-var array<string, mixed> $itemData */
-            $result[$key] = $this->create($itemClass, $itemData);
+            $result[$key] = $this->newInstance($itemClass, $itemData);
         }
 
         return $result;

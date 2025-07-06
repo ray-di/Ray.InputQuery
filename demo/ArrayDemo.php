@@ -32,7 +32,7 @@ final class UserController
             echo "  [$index] ID: {$user->id}, Name: {$user->name}\n";
         }
     }
-    
+
     public function listUsersAsArrayObject(
         #[Input(item: User::class)]
         ArrayObject $users
@@ -64,7 +64,7 @@ $method = new ReflectionMethod($controller, 'listUsers');
 $args = $inputQuery->getArguments($method, $query);
 $controller->listUsers(...$args);
 
-// ArrayObject example
+// ArrayObject examplepi
 $method = new ReflectionMethod($controller, 'listUsersAsArrayObject');
 $args = $inputQuery->getArguments($method, $query);
-$controller->listUsersAsArrayObject(...$args);
+$controller->listUsersAsArrayObject(...$args);pi

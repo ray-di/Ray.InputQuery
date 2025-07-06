@@ -29,5 +29,5 @@ interface InputQueryInterface
      *
      * @return T
      */
-    public function create(string $class, array $query): object;
+    public function newInstance(string $class, array $query): object;
 }

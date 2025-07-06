@@ -551,7 +551,7 @@ $result = $method->invokeArgs($controller, $args);
 ### 2. Direct Object Creation Pattern
 
 ```php
-$input = $inputQuery->create(UserInput::class, $requestData);
+$input = $inputQuery->newInstance(UserInput::class, $requestData);
 $result = $controller->handleUser($input);
 ```
 

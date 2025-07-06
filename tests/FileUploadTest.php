@@ -40,7 +40,7 @@ class FileUploadTest extends TestCase
             'avatar' => $mockAvatar,
         ];
 
-        $result = $this->inputQuery->create(FileUploadInput::class, $query);
+        $result = $this->inputQuery->newInstance(FileUploadInput::class, $query);
 
         $this->assertSame('Jingu', $result->name);
         $this->assertSame($mockAvatar, $result->avatar);
@@ -64,7 +64,7 @@ class FileUploadTest extends TestCase
             'avatar' => $mockAvatar,
         ];
 
-        $result = $this->inputQuery->create(FileUploadWithOptionsInput::class, $query);
+        $result = $this->inputQuery->newInstance(FileUploadWithOptionsInput::class, $query);
 
         $this->assertSame('Horikawa', $result->name);
         $this->assertSame($mockAvatar, $result->avatar);
@@ -78,7 +78,7 @@ class FileUploadTest extends TestCase
             'banner' => null,
         ];
 
-        $result = $this->inputQuery->create(OptionalFileUploadInput::class, $query);
+        $result = $this->inputQuery->newInstance(OptionalFileUploadInput::class, $query);
 
         $this->assertSame('Test User', $result->name);
         $this->assertNull($result->banner);
@@ -107,7 +107,7 @@ class FileUploadTest extends TestCase
             'images' => [$mockImage1, $mockImage2],
         ];
 
-        $result = $this->inputQuery->create(FileUploadArrayInput::class, $query);
+        $result = $this->inputQuery->newInstance(FileUploadArrayInput::class, $query);
 
         $this->assertSame('Gallery', $result->title);
         $this->assertCount(2, $result->images);

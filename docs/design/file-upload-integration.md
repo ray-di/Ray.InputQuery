@@ -172,7 +172,7 @@ if ($upload instanceof ErrorFileUpload) {
 ```php
 // In tests, use FileUpload::fromFile() for easy testing
 $upload = FileUpload::fromFile(__DIR__ . '/fixtures/test-image.jpg');
-$input = $inputQuery->create(UserProfileInput::class, [
+$input = $inputQuery->newInstance(UserProfileInput::class, [
     'name' => 'Test User',
     'email' => 'test@example.com'
 ], ['avatar' => $upload->toArray()]);
@@ -307,10 +307,11 @@ if ($upload instanceof ErrorFileUpload) {
 ```
 
 **3. Testing Integration**
+
 ```php
 // Natural testing approach
 $testUpload = FileUpload::fromFile(__DIR__ . '/fixtures/test.jpg');
-$input = $inputQuery->create(UserInput::class, $_POST, [
+$input = $inputQuery->newInstance(UserInput::class, $_POST, [
     'avatar' => $testUpload->toArray()
 ]);
 ```

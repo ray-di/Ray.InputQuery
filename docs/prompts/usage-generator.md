@@ -29,6 +29,7 @@ Ray.InputQuery is a library that:
 Based on the provided Input classes, generate examples for:
 
 ### 1. Basic Ray.InputQuery Usage
+
 ```php
 use Ray\InputQuery\InputQuery;
 use Ray\Di\Injector;
@@ -37,7 +38,7 @@ $injector = new Injector();
 $inputQuery = new InputQuery($injector);
 
 // Direct object creation
-$input = $inputQuery->create(ExampleInput::class, $_POST);
+$input = $inputQuery->newInstance(ExampleInput::class, $_POST);
 
 // Method argument resolution
 $method = new ReflectionMethod(Controller::class, 'action');
@@ -208,12 +209,13 @@ class CsvImportResource extends ResourceObject
 ```
 
 #### Multi-step Form
+
 ```php
 // Step 1: Basic Info
-$step1 = $inputQuery->create(Step1Input::class, $_SESSION['step1']);
+$step1 = $inputQuery->newInstance(Step1Input::class, $_SESSION['step1']);
 
 // Step 2: Details  
-$step2 = $inputQuery->create(Step2Input::class, $_SESSION['step2']);
+$step2 = $inputQuery->newInstance(Step2Input::class, $_SESSION['step2']);
 
 // Combine for final submission
 $order = new OrderInput($step1, $step2, $paymentInput);

@@ -340,7 +340,7 @@ final class UserInput
 }
 
 // 使用
-$user = $inputQuery->create(UserInput::class, $_POST);
+$user = $inputQuery->newInstance(UserInput::class, $_POST);
 echo $user->name;  // "John Doe"
 echo $user->email; // "john@example.com"
 ```
@@ -371,7 +371,7 @@ final class AuthorInput
 }
 
 // 自動的にネスト構造を構築
-$article = $inputQuery->create(ArticleInput::class, $_POST);
+$article = $inputQuery->newInstance(ArticleInput::class, $_POST);
 echo $article->author->name; // "John"
 ```
 
