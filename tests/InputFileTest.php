@@ -38,7 +38,7 @@ final class InputFileTest extends TestCase
         ]);
         $query = ['name' => 'test user', 'avatar' => $fileUpload];
 
-        $input = $this->inputQuery->create(InputFileInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileInput::class, $query);
 
         $this->assertInstanceOf(InputFileInput::class, $input);
         $this->assertSame($fileUpload, $input->avatar);
@@ -55,7 +55,7 @@ final class InputFileTest extends TestCase
         ]);
         $query = ['name' => 'test user', 'avatar' => $fileUpload];
 
-        $input = $this->inputQuery->create(InputFileWithOptionsInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileWithOptionsInput::class, $query);
 
         $this->assertInstanceOf(InputFileWithOptionsInput::class, $input);
         $this->assertSame($fileUpload, $input->avatar);
@@ -73,7 +73,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileInput::class, $query);
 
         $this->assertInstanceOf(InputFileInput::class, $input);
         $this->assertInstanceOf(FileUpload::class, $input->avatar);
@@ -94,7 +94,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileValidationInput::class, $input);
         $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
@@ -114,7 +114,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileValidationInput::class, $input);
         $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
@@ -134,7 +134,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileValidationInput::class, $input);
         $this->assertInstanceOf(FileUpload::class, $input->avatar);
@@ -154,7 +154,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileExtensionValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
         $this->assertInstanceOf(ErrorFileUpload::class, $input->avatar);
@@ -174,7 +174,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileExtensionValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
         $this->assertInstanceOf(FileUpload::class, $input->avatar);
@@ -193,7 +193,7 @@ final class InputFileTest extends TestCase
         ];
 
         $query = ['name' => 'test user'];
-        $input = $this->inputQuery->create(InputFileExtensionValidationInput::class, $query);
+        $input = $this->inputQuery->newInstance(InputFileExtensionValidationInput::class, $query);
 
         $this->assertInstanceOf(InputFileExtensionValidationInput::class, $input);
         // This should fail because pathinfo() is case-sensitive
@@ -207,7 +207,7 @@ final class InputFileTest extends TestCase
         $this->expectExceptionMessage('Only one #[InputFile] attribute is allowed per parameter');
 
         $query = ['name' => 'test user'];
-        $this->inputQuery->create(MultipleInputFileAttributesInput::class, $query);
+        $this->inputQuery->newInstance(MultipleInputFileAttributesInput::class, $query);
     }
 
     public function testConflictingInputAndInputFileAttributesThrowsException(): void
@@ -216,7 +216,7 @@ final class InputFileTest extends TestCase
         $this->expectExceptionMessage('Parameter $conflictingParam cannot have both #[Input] and #[InputFile] attributes at the same time.');
 
         $query = ['name' => 'test user'];
-        $this->inputQuery->create(ConflictingAttributesInput::class, $query);
+        $this->inputQuery->newInstance(ConflictingAttributesInput::class, $query);
     }
 
     protected function tearDown(): void

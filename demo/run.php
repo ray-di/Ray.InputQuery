@@ -30,7 +30,7 @@ $injector = new Injector(new class extends AbstractModule {
     }
 });
 
-$inputQuery = new InputQuery($injector, $injector->getInstance(FileUploadFactoryInterface::class));
+$inputQuery = new InputQuery($injector, new FileUploadFactory());
 
 echo "1. Simple User Profile Creation\n";
 echo "================================\n";
@@ -44,7 +44,7 @@ $userFormData = [
     'isPublic' => '1'
 ];
 
-$userProfile = $inputQuery->create(UserProfile::class, $userFormData);
+$userProfile = $inputQuery->newInstance(UserProfile::class, $userFormData);
 echo $userProfile->getDisplayInfo() . "\n\n";
 
 echo "2. Nested Object Creation (Blog Post with Author)\n";
@@ -61,7 +61,7 @@ $blogFormData = [
     'authorId' => 'user123'
 ];
 
-$blogPost = $inputQuery->create(BlogPost::class, $blogFormData);
+$blogPost = $inputQuery->newInstance(BlogPost::class, $blogFormData);
 echo $blogPost->getPostSummary() . "\n\n";
 
 echo "3. Controller Method Arguments with DI\n";
@@ -93,7 +93,7 @@ $scalarData = [
     'isPublic' => 'true'  // string -> bool
 ];
 
-$profile = $inputQuery->create(UserProfile::class, $scalarData);
+$profile = $inputQuery->newInstance(UserProfile::class, $scalarData);
 echo "Converted types:\n";
 echo "- age (string '25' -> int): " . var_export($profile->age, true) . " (" . gettype($profile->age) . ")\n";
 echo "- isPublic (string 'true' -> bool): " . var_export($profile->isPublic, true) . " (" . gettype($profile->isPublic) . ")\n\n";
@@ -107,7 +107,7 @@ $minimalData = [
     'email' => 'minimal@example.com'
 ];
 
-$minimalProfile = $inputQuery->create(UserProfile::class, $minimalData);
+$minimalProfile = $inputQuery->newInstance(UserProfile::class, $minimalData);
 echo "Profile with defaults:\n";
 echo $minimalProfile->getDisplayInfo() . "\n\n";
 
@@ -123,7 +123,7 @@ $snakeCaseData = [
     'author_id' => 'snake123'           // author_id -> authorId
 ];
 
-$snakeCasePost = $inputQuery->create(BlogPost::class, $snakeCaseData);
+$snakeCasePost = $inputQuery->newInstance(BlogPost::class, $snakeCaseData);
 echo "Successfully converted snake_case keys:\n";
 echo $snakeCasePost->getPostSummary() . "\n\n";
 
@@ -142,7 +142,7 @@ $fileUploadData = [
     ]),
     'banner' => FileUpload::create([
         'name' => 'banner.png',
-        'type' => 'image/png', 
+        'type' => 'image/png',
         'size' => 2048,
         'tmp_name' => '/tmp/upload2',
         'error' => 0,
@@ -165,7 +165,7 @@ $fileUploadData = [
     ]
 ];
 
-$fileExample = $inputQuery->create(FileUploadExample::class, $fileUploadData);
+$fileExample = $inputQuery->newInstance(FileUploadExample::class, $fileUploadData);
 echo $fileExample->getUploadSummary() . "\n";
 
 echo "🌟 HTML Form Mapping Examples\n";

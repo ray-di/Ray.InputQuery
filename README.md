@@ -24,7 +24,7 @@ $title = $data['title'] ?? '';
 $assigneeId = $data['assigneeId'] ?? '';
 $assigneeName = $data['assigneeName'] ?? '';
 $assigneeEmail = $data['assigneeEmail'] ?? '';
-
+```
 
 **Ray.InputQuery Solution:**
 ```php
@@ -46,6 +46,14 @@ public function createTodo(TodoInput $input) {
 
 ```bash
 composer require ray/input-query
+```
+
+### Optional: File Upload Support
+
+For file upload functionality, also install:
+
+```bash
+composer require koriym/file-upload
 ```
 
 ## Demo
@@ -100,7 +108,7 @@ $injector = new Injector();
 $inputQuery = new InputQuery($injector);
 
 // Create object directly from array
-$user = $inputQuery->create(UserInput::class, [
+$user = $inputQuery->newInstance(UserInput::class, [
     'name' => 'John Doe',
     'email' => 'john@example.com'
 ]);
@@ -123,23 +131,34 @@ $result = $method->invokeArgs($controller, $args);
 Ray.InputQuery automatically creates nested objects from flat query data:
 
 ```php
-final class TodoInput
+final class AddressInput
 {
     public function __construct(
-        #[Input] public readonly string $title,
-        #[Input] public readonly UserInput $assignee  // Nested input
+        #[Input] public readonly string $street,
+        #[Input] public readonly string $city,
+        #[Input] public readonly string $zip
     ) {}
 }
 
-$todo = $inputQuery->create(TodoInput::class, [
-    'title' => 'Buy milk',
-    'assigneeId' => '123',
-    'assigneeName' => 'John',
-    'assigneeEmail' => 'john@example.com'
+final class UserInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+        #[Input] public readonly AddressInput $address  // Nested input
+    ) {}
+}
+
+$user = $inputQuery->newInstance(UserInput::class, [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'addressStreet' => '123 Main St',
+    'addressCity' => 'Tokyo',
+    'addressZip' => '100-0001'
 ]);
 
-echo $todo->title;           // Buy milk
-echo $todo->assignee->name;  // John
+echo $user->name;            // John Doe
+echo $user->address->street; // 123 Main St
 ```
 
 ### Array Support
@@ -289,14 +308,71 @@ Parameters without the `#[Input]` attribute are resolved via dependency injectio
 ```php
 use Ray\Di\Di\Named;
 
-final class OrderInput
+interface AddressServiceInterface
+{
+    public function findByZip(string $zip): Address;
+}
+
+
+interface TicketFactoryInterface
+{
+    public function create(string $eventId, string $ticketId): Ticket;
+}
+
+final class EventBookingInput
 {
     public function __construct(
-        #[Input] public readonly string $orderId,         // From query
-        #[Input] public readonly CustomerInput $customer,  // From query
-        #[Named('tax.rate')] private float $taxRate,      // From DI
-        private LoggerInterface $logger                    // From DI
-    ) {}
+        #[Input] public readonly string $ticketId,        // From query - raw ID
+        #[Input] public readonly string $email,           // From query
+        #[Input] public readonly string $zip,             // From query
+        #[Named('event_id')] private string $eventId,     // From DI
+        private TicketFactoryInterface $ticketFactory,    // From DI
+        private AddressServiceInterface $addressService,  // From DI
+    ) {
+        // Create complete Ticket object from ID (includes validation, expiry, etc.)
+        $this->ticket = $this->ticketFactory->create($eventId, $ticketId);
+        // Fully validated immutable ticket object created!
+        
+        if (!$this->ticket->isValid) {
+            throw new InvalidTicketException(
+                "Ticket {$ticketId} is invalid: {$this->ticket->getInvalidReason()}"
+            );
+        }
+        
+        // Get address from zip
+        $this->address = $this->addressService->findByZip($zip);
+    }
+    
+    public readonly Ticket $ticket;    // Complete ticket object with ID, status, etc.
+    public readonly Address $address;  // Structured address object
+}
+
+// DI configuration
+$injector = new Injector(new class extends AbstractModule {
+    protected function configure(): void
+    {
+        $this->bind(TicketFactoryInterface::class)->to(TicketFactory::class);   // Can swap with mock in tests
+        $this->bind(AddressServiceInterface::class)->to(AddressService::class);
+        $this->bind()->annotatedWith('event_id')->toInstance('ray-event-2025');
+    }
+});
+
+$inputQuery = new InputQuery($injector);
+
+// Usage - Factory automatically creates complete objects from IDs
+try {
+    $booking = $inputQuery->newInstance(EventBookingInput::class, [
+        'ticketId' => 'TKT-2024-001',
+        'email' => 'user@example.com',
+        'zip' => '100-0001'
+    ]);
+    
+    // $booking->ticket is a Ticket object with ID and validation status
+    echo "Ticket ID: " . $booking->ticket->id; // Only valid ticket ID
+    
+} catch (InvalidTicketException $e) {
+    // Handle expired or invalid tickets
+    echo "Booking failed: " . $e->getMessage();
 }
 ```
 
@@ -314,6 +390,15 @@ Ray.InputQuery provides comprehensive file upload support through integration wi
 
 ```bash
 composer require koriym/file-upload
+```
+
+When using file upload features, instantiate InputQuery with FileUploadFactory:
+
+```php
+use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
+
+$inputQuery = new InputQuery($injector, new FileUploadFactory());
 ```
 
 ### Using #[InputFile] Attribute
@@ -352,7 +437,7 @@ File upload handling is designed to be test-friendly:
 
 ```php
 // Production usage - FileUpload library handles file uploads automatically
-$input = $inputQuery->create(UserProfileInput::class, $_POST);
+$input = $inputQuery->newInstance(UserProfileInput::class, $_POST);
 // FileUpload objects are created automatically from uploaded files
 
 // Testing usage - inject mock FileUpload objects directly for easy testing
@@ -364,7 +449,7 @@ $mockAvatar = FileUpload::create([
     'error' => UPLOAD_ERR_OK,
 ]);
 
-$input = $inputQuery->create(UserProfileInput::class, [
+$input = $inputQuery->newInstance(UserProfileInput::class, [
     'name' => 'Test User',
     'email' => 'test@example.com', 
     'avatar' => $mockAvatar,
@@ -412,7 +497,7 @@ class GalleryController
 }
 
 // Production usage - FileUpload library handles multiple files automatically
-$input = $inputQuery->create(GalleryInput::class, $_POST);
+$input = $inputQuery->newInstance(GalleryInput::class, $_POST);
 // Array of FileUpload objects created automatically from uploaded files
 
 // Testing usage - inject array of mock FileUpload objects for easy testing
@@ -421,33 +506,8 @@ $mockImages = [
     FileUpload::create(['name' => 'image2.png', ...])
 ];
 
-$input = $inputQuery->create(GalleryInput::class, [
+$input = $inputQuery->newInstance(GalleryInput::class, [
     'title' => 'My Gallery',
     'images' => $mockImages
 ]);
 ```
-
-## Integration
-
-Ray.InputQuery is designed as a foundation library to be used by:
-
-- [Ray.MediaQuery](https://github.com/ray-di/Ray.MediaQuery) - For database query integration
-- [BEAR.Resource](https://github.com/bearsunday/BEAR.Resource) - For REST resource integration
-
-## Project Quality
-
-This project maintains high quality standards:
-
-- **100% Code Coverage** - Achieved through public interface tests only
-- **Static Analysis** - Psalm and PHPStan at maximum levels
-- **Test Design** - No private method tests, ensuring maintainability
-- **Type Safety** - Comprehensive Psalm type annotations
-
-## Requirements
-
-- PHP 8.1+
-- ray/di ^2.0
-
-## License
-
-MIT

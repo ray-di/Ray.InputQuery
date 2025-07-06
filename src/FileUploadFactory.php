@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
+use Koriym\FileUpload\AbstractFileUpload;
 use Koriym\FileUpload\ErrorFileUpload;
 use Koriym\FileUpload\FileUpload;
 use Override;
@@ -45,7 +46,7 @@ final class FileUploadFactory implements FileUploadFactoryInterface
      * @param ReflectionAttribute<InputFile>|null $inputFileAttribute InputFile attribute instance containing validation options
      */
     #[Override]
-    public function create(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): FileUpload|ErrorFileUpload
+    public function create(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): AbstractFileUpload
     {
         $validationOptions = $this->extractValidationOptions($inputFileAttribute);
 
@@ -74,7 +75,7 @@ final class FileUploadFactory implements FileUploadFactoryInterface
      * @param Query                               $query              Service locator for pre-created FileUpload objects (testing) or empty array (production)
      * @param ReflectionAttribute<InputFile>|null $inputFileAttribute InputFile attribute instance containing validation options
      *
-     * @return array<FileUploadKey, FileUpload|ErrorFileUpload>
+     * @return array<FileUploadKey, AbstractFileUpload>
      */
     #[Override]
     public function createMultiple(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): array
@@ -127,7 +128,7 @@ final class FileUploadFactory implements FileUploadFactoryInterface
      * @param ValidationOptions         $validationOptions Validation rules for file upload
      * @param array<string, mixed>|null $filesData         Custom files data (for createFromFiles)
      */
-    private function resolveFileUpload(ReflectionParameter $param, array $query, array $validationOptions = [], array|null $filesData = null): FileUpload|ErrorFileUpload
+    private function resolveFileUpload(ReflectionParameter $param, array $query, array $validationOptions = [], array|null $filesData = null): AbstractFileUpload
     {
         $paramName = $param->getName();
 

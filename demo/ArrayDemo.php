@@ -32,7 +32,7 @@ final class UserController
             echo "  [$index] ID: {$user->id}, Name: {$user->name}\n";
         }
     }
-    
+
     public function listUsersAsArrayObject(
         #[Input(item: User::class)]
         ArrayObject $users

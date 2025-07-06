@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Ray\InputQuery;
 
-use Koriym\FileUpload\ErrorFileUpload;
-use Koriym\FileUpload\FileUpload;
+use Koriym\FileUpload\AbstractFileUpload;
 use Ray\InputQuery\Attribute\InputFile;
 use ReflectionAttribute;
 use ReflectionParameter;
@@ -20,7 +19,7 @@ interface FileUploadFactoryInterface
      * @param array<string, mixed>                $query              Service locator for pre-created FileUpload objects (testing) or empty array (production)
      * @param ReflectionAttribute<InputFile>|null $inputFileAttribute InputFile attribute instance containing validation options
      */
-    public function create(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): FileUpload|ErrorFileUpload;
+    public function create(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): AbstractFileUpload;
 
     /**
      * Create multiple FileUploads from InputFile attribute and query data
@@ -31,7 +30,7 @@ interface FileUploadFactoryInterface
      * @param array<string, mixed>                $query              Service locator for pre-created FileUpload objects (testing) or empty array (production)
      * @param ReflectionAttribute<InputFile>|null $inputFileAttribute InputFile attribute instance containing validation options
      *
-     * @return array<FileUploadKey, FileUpload|ErrorFileUpload>
+     * @return array<FileUploadKey, AbstractFileUpload>
      */
     public function createMultiple(ReflectionParameter $param, array $query, ReflectionAttribute|null $inputFileAttribute): array;
 }
