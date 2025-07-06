@@ -75,7 +75,7 @@ final class InputQuery implements InputQueryInterface
         private InjectorInterface $injector,
         FileUploadFactoryInterface|null $fileUploadFactory = null,
     ) {
-        $this->fileUploadFactory = $fileUploadFactory ?? new FileUploadFactory();
+        $this->fileUploadFactory = $fileUploadFactory ?? new NullUploadFactory();
     }
 
     /**

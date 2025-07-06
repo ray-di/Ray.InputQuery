@@ -48,6 +48,14 @@ public function createTodo(TodoInput $input) {
 composer require ray/input-query
 ```
 
+### Optional: File Upload Support
+
+For file upload functionality, also install:
+
+```bash
+composer require koriym/file-upload
+```
+
 ## Demo
 
 To see file upload integration in action:
@@ -382,6 +390,15 @@ Ray.InputQuery provides comprehensive file upload support through integration wi
 
 ```bash
 composer require koriym/file-upload
+```
+
+When using file upload features, instantiate InputQuery with FileUploadFactory:
+
+```php
+use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
+
+$inputQuery = new InputQuery($injector, new FileUploadFactory());
 ```
 
 ### Using #[InputFile] Attribute

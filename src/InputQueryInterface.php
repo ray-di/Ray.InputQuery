@@ -15,7 +15,7 @@ interface InputQueryInterface
     /**
      * Get method arguments from query data
      *
-     * @param Query $query HTTP request data ($_POST, $_GET, etc.)
+     * @param Query $query Array data (HTTP request, test data, etc.)
      *
      * @return array<mixed>
      */
@@ -25,7 +25,7 @@ interface InputQueryInterface
      * Create object from query data
      *
      * @param class-string<T> $class
-     * @param Query           $query HTTP request data ($_POST, $_GET, etc.)
+     * @param Query           $query Array data (HTTP request, test data, etc.)
      *
      * @return T
      */

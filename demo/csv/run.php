@@ -17,8 +17,9 @@ use Ray\InputQuery\Demo\CsvFileInput;
 use Ray\InputQuery\Demo\CsvToInputConverter;
 use Ray\InputQuery\Demo\CsvUsersImport;
 use Ray\InputQuery\InputQuery;
+use Ray\InputQuery\FileUploadFactory;
 
-$inputQuery = new InputQuery(new Injector());
+$inputQuery = new InputQuery(new Injector(), new FileUploadFactory());
 $csvFile = FileUpload::fromFile(__DIR__ . '/users.csv',[
 ]);
 

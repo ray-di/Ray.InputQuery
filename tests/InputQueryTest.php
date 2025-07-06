@@ -77,7 +77,7 @@ final class InputQueryTest extends TestCase
                 $this->bind(TestService::class)->toInstance(new TestService('injected'));
             }
         });
-        $this->inputQuery = new InputQuery($injector, new FileUploadFactory());
+        $this->inputQuery = new InputQuery($injector);
     }
 
     protected function tearDown(): void

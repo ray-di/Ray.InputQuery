@@ -64,7 +64,7 @@ $method = new ReflectionMethod($controller, 'listUsers');
 $args = $inputQuery->getArguments($method, $query);
 $controller->listUsers(...$args);
 
-// ArrayObject examplepi
+// ArrayObject example
 $method = new ReflectionMethod($controller, 'listUsersAsArrayObject');
 $args = $inputQuery->getArguments($method, $query);
-$controller->listUsersAsArrayObject(...$args);pi
+$controller->listUsersAsArrayObject(...$args);

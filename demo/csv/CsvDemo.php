@@ -112,7 +112,7 @@ class CsvDemo
         $ageGroup = $addGroup->getGroups();
         $ageGroup = array_unique($ageGroup);
         echo "Age group: " . json_encode($ageGroup) . "\n";
-        exit;
+        return;
 
     }
 

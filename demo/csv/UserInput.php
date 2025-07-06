@@ -33,7 +33,7 @@ final class UserInput
 
     public function __toString(): string
     {
-        $age = $this->age ? " (Age: {$this->age})" : '';
+        $age = $this->age !== null ? " (Age: {$this->age})" : '';
         $dept = $this->department ? " [{$this->department}]" : '';
 
         return "{$this->name} <{$this->email}>{$age}{$dept}";

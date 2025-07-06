@@ -30,7 +30,7 @@ $injector = new Injector(new class extends AbstractModule {
     }
 });
 
-$inputQuery = new InputQuery($injector);
+$inputQuery = new InputQuery($injector, new FileUploadFactory());
 
 echo "1. Simple User Profile Creation\n";
 echo "================================\n";
