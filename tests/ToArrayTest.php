@@ -35,16 +35,6 @@ final class ToArrayTest extends TestCase
 
     public function testNestedObject(): void
     {
-        $author = new class {
-            public function __construct(
-                #[Input]
-                public readonly string $name = 'John',
-                #[Input]
-                public readonly string $email = 'john@example.com',
-            ) {
-            }
-        };
-
         $article = new class {
             #[Input]
             public readonly string $title;
