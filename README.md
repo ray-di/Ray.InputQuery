@@ -58,6 +58,8 @@ composer require koriym/file-upload
 
 ## Demo
 
+### Web Demo
+
 To see file upload integration in action:
 
 ```bash
@@ -65,6 +67,21 @@ php -S localhost:8080 -t demo/
 ```
 
 Then visit [http://localhost:8080](http://localhost:8080) in your browser.
+
+### Console Demos
+
+Run various examples from the command line:
+
+```bash
+# Basic examples with nested objects and DI
+php demo/run.php
+
+# Array processing demo
+php demo/ArrayDemo.php
+
+# CSV file processing with batch operations
+php demo/csv/run.php
+```
 
 ## Documentation
 
