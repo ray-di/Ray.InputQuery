@@ -4,43 +4,45 @@
 [![Type Coverage](https://shepherd.dev/github/ray-di/Ray.InputQuery/coverage.svg)](https://shepherd.dev/github/ray-di/Ray.InputQuery)
 [![codecov](https://codecov.io/gh/ray-di/Ray.InputQuery/branch/main/graph/badge.svg)](https://codecov.io/gh/ray-di/Ray.InputQuery)
 
-Structured input objects from HTTP with 100% test coverage.
+Convert HTTP query parameters into hierarchical PHP objects automatically.
+
+## Quick Example
+
+```php
+// HTTP Request: ?name=John&email=john@example.com&addressStreet=123 Main St&addressCity=Tokyo
+
+// Automatically becomes:
+final class AddressInput {
+    public function __construct(
+        #[Input] public readonly string $street,
+        #[Input] public readonly string $city
+    ) {}
+}
+
+final class UserInput {
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+        #[Input] public readonly AddressInput $address  // Nested object!
+    ) {}
+}
+
+$user = $inputQuery->newInstance(UserInput::class, $_GET);
+echo $user->name;            // "John"
+echo $user->address->street; // "123 Main St"
+```
+
+**Key Point**: `addressStreet` and `addressCity` automatically compose the `AddressInput` object.
 
 ## Overview
 
 Ray.InputQuery transforms flat HTTP data into structured PHP objects through explicit type declarations. Using the `#[Input]` attribute, you declare which parameters come from query data, while other parameters are resolved via dependency injection.
 
-**Core Mechanism:**
-- **Attribute-Based Control** - `#[Input]` explicitly marks query-sourced parameters
-- **Prefix-Based Nesting** - `assigneeId`, `assigneeName` fields automatically compose `UserInput` objects
-- **Type-Safe Conversion** - Leverages PHP's type system for automatic scalar conversion
-- **DI Integration** - Parameters without `#[Input]` are resolved from dependency injection
-
-**The Problem:**
-```php
-// Manual parameter extraction and object construction
-$data = $request->getParsedBody(); // or $_POST
-$title = $data['title'] ?? '';
-$assigneeId = $data['assigneeId'] ?? '';
-$assigneeName = $data['assigneeName'] ?? '';
-$assigneeEmail = $data['assigneeEmail'] ?? '';
-```
-
-**Ray.InputQuery Solution:**
-```php
-// Declarative structure definition
-final class TodoInput {
-    public function __construct(
-        #[Input] public readonly string $title,
-        #[Input] public readonly UserInput $assignee,  // Auto-composed from assigneeId, assigneeName, assigneeEmail
-        private LoggerInterface $logger  // From DI container
-    ) {}
-}
-
-public function createTodo(TodoInput $input) {
-    // $input automatically structured from request data
-}
-```
+**Core Features:**
+- **Automatic Nesting** - Prefix-based parameters create hierarchical objects
+- **Type Safety** - Leverages PHP's type system for automatic conversion
+- **DI Integration** - Mix query parameters with dependency injection
+- **Validation** - Type constraints ensure data integrity
 
 ## Installation
 
@@ -54,33 +56,6 @@ For file upload functionality, also install:
 
 ```bash
 composer require koriym/file-upload
-```
-
-## Demo
-
-### Web Demo
-
-To see file upload integration in action:
-
-```bash
-php -S localhost:8080 -t demo/
-```
-
-Then visit [http://localhost:8080](http://localhost:8080) in your browser.
-
-### Console Demos
-
-Run various examples from the command line:
-
-```bash
-# Basic examples with nested objects and DI
-php demo/run.php
-
-# Array processing demo
-php demo/ArrayDemo.php
-
-# CSV file processing with batch operations
-php demo/csv/run.php
 ```
 
 ## Documentation
@@ -136,10 +111,6 @@ echo $user->email; // john@example.com
 // Method argument resolution from $_POST
 $method = new ReflectionMethod(UserController::class, 'register');
 $args = $inputQuery->getArguments($method, $_POST);
-$result = $method->invokeArgs($controller, $args);
-
- // Or with PSR-7 Request
-$args = $inputQuery->getArguments($method, $request->getParsedBody());
 $result = $method->invokeArgs($controller, $args);
 ```
 
@@ -527,4 +498,184 @@ $input = $inputQuery->newInstance(GalleryInput::class, [
     'title' => 'My Gallery',
     'images' => $mockImages
 ]);
+```
+
+## Converting Objects to Arrays
+
+Ray.InputQuery provides the `ToArray` functionality to convert objects with `#[Input]` parameters into flat associative arrays, primarily for SQL parameter binding with libraries like Aura.Sql:
+
+### Basic ToArray Usage
+
+```php
+use Ray\InputQuery\ToArray;
+
+final class CustomerInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+    ) {}
+}
+
+final class OrderInput
+{
+    public function __construct(
+        #[Input] public readonly string $id,
+        #[Input] public readonly CustomerInput $customer,
+        #[Input] public readonly array $items,
+    ) {}
+}
+
+// Create nested input object
+$orderInput = new OrderInput(
+    id: 'ORD-001',
+    customer: new CustomerInput(name: 'John Doe', email: 'john@example.com'),
+    items: [['product' => 'laptop', 'quantity' => 1]]
+);
+
+// Convert to flat array for SQL
+$toArray = new ToArray();
+$params = $toArray($orderInput);
+
+// Result: 
+// [
+//     'id' => 'ORD-001',
+//     'name' => 'John Doe',           // Flattened from customer
+//     'email' => 'john@example.com',  // Flattened from customer  
+//     'items' => [['product' => 'laptop', 'quantity' => 1]]  // Arrays preserved
+// ]
+```
+
+### SQL Param￥￥eter Binding
+
+The flattened arrays work seamlessly with Aura.Sql and other SQL libraries:
+
+```php
+// Using with Aura.Sql
+$sql = "INSERT INTO orders (id, customer_name, customer_email) VALUES (:id, :name, :email)";
+$statement = $pdo->prepare($sql);
+$statement->execute($params);
+
+// Arrays are preserved for IN clauses
+$productIds = $params['productIds']; // [1, 2, 3]
+$sql = "SELECT * FROM products WHERE id IN (?)";
+$statement = $pdo->prepare($sql);
+$statement->execute([$productIds]); // Aura.Sql handles array expansion
+
+// Other use cases
+return new JsonResponse($params);  // API responses
+$this->logger->info('Order data', $params);  // Logging
+```
+
+### Property Name Conflicts
+
+When flattened properties have the same name, later values overwrite earlier ones:
+
+```php
+final class OrderInput
+{
+    public function __construct(
+        #[Input] public readonly string $id,           // 'ORD-001'
+        #[Input] public readonly CustomerInput $customer,  // Has 'id' property: 'CUST-123'
+    ) {}
+}
+
+$params = $toArray($orderInput);
+// Result: ['id' => 'CUST-123']  // Customer ID overwrites order ID
+```
+
+### Key Features
+
+- **Recursive Flattening**: Nested objects with `#[Input]` parameters are automatically flattened
+- **Array Preservation**: Arrays remain intact for SQL IN clauses (Aura.Sql compatible)
+- **Property Conflicts**: Later properties overwrite earlier ones
+- **Public Properties Only**: Private/protected properties are ignored
+- **Type Safety**: Maintains type information through transformation
+
+### Complex Example
+
+```php
+final class AddressInput
+{
+    public function __construct(
+        #[Input] public readonly string $street,
+        #[Input] public readonly string $city,
+        #[Input] public readonly string $country,
+    ) {}
+}
+
+final class CustomerInput
+{
+    public function __construct(
+        #[Input] public readonly string $name,
+        #[Input] public readonly string $email,
+        #[Input] public readonly AddressInput $address,
+    ) {}
+}
+
+final class OrderInput
+{
+    public function __construct(
+        #[Input] public readonly string $orderId,
+        #[Input] public readonly CustomerInput $customer,
+        #[Input] public readonly AddressInput $shipping,
+        #[Input] public readonly array $productIds,
+    ) {}
+}
+
+$order = new OrderInput(
+    orderId: 'ORD-001',
+    customer: new CustomerInput(
+        name: 'John Doe',
+        email: 'john@example.com',
+        address: new AddressInput(street: '123 Main St', city: 'Tokyo', country: 'Japan')
+    ),
+    shipping: new AddressInput(street: '456 Oak Ave', city: 'Osaka', country: 'Japan'),
+    productIds: ['PROD-1', 'PROD-2', 'PROD-3']
+);
+
+$params = $toArray($order);
+// Result:
+// [
+//     'orderId' => 'ORD-001',
+//     'name' => 'John Doe',
+//     'email' => 'john@example.com',
+//     'street' => '456 Oak Ave',      // Shipping address overwrites customer address
+//     'city' => 'Osaka',             // Shipping address overwrites customer address  
+//     'country' => 'Japan',          // Same value, so no visible conflict
+//     'productIds' => ['PROD-1', 'PROD-2', 'PROD-3']  // Array preserved
+// ]
+
+// Use the flattened data
+$orderId = $params['orderId'];
+$customerName = $params['name'];
+$shippingAddress = "{$params['street']}, {$params['city']}, {$params['country']}";
+$productIds = $params['productIds']; // Array preserved
+```
+
+## Demo
+
+### Web Demo
+
+To see file upload integration in action:
+
+```bash
+php -S localhost:8080 -t demo/
+```
+
+Then visit [http://localhost:8080](http://localhost:8080) in your browser.
+
+### Console Demos
+
+Run various examples from the command line:
+
+```bash
+# Basic examples with nested objects and DI
+php demo/run.php
+
+# Array processing demo
+php demo/ArrayDemo.php
+
+# CSV file processing with batch operations
+php demo/csv/run.php
 ```
