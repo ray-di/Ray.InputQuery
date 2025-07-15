@@ -266,7 +266,7 @@ final class InputQuery implements InputQueryInterface
         // Check if the parameter name exists as a direct nested array in query
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
             assert(class_exists($className));
-            /** @var class-string<T> $className */
+
             return $this->newInstance($className, $query[$paramName]);
         }
 
