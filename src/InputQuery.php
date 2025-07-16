@@ -263,6 +263,18 @@ final class InputQuery implements InputQueryInterface
             return $arrayObjectResult;
         }
 
+        // Check if the parameter name exists as a direct nested array in query
+        if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
+            // This should never fail as $className comes from ReflectionParameter type info
+            assert(class_exists($className), "Internal logic error: Class '$className' from reflection should exist");
+
+            /** @var Query $nestedQuery */
+            $nestedQuery = $query[$paramName];
+
+            /** @var class-string<T> $className */
+            return $this->newInstance($className, $nestedQuery);
+        }
+
         // Regular object type with #[Input] - create nested
         $nestedQuery = $this->extractNestedQuery($paramName, $query);
 

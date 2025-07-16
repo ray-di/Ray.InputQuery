@@ -118,6 +118,26 @@ final class InputQueryTest extends TestCase
         $this->assertSame('john@example.com', $todo->author->email);
     }
 
+    public function testCreateBracketObject(): void
+    {
+        $query = [
+            'title' => 'Buy milk',
+            'author' => [
+                'name' => 'John',
+                'email' => 'john@example.com',
+            ],
+        ];
+
+        $todo = $this->inputQuery->newInstance(TodoInput::class, $query);
+
+        $this->assertInstanceOf(TodoInput::class, $todo);
+        /** @var TodoInput $todo */
+        $this->assertSame('Buy milk', $todo->title);
+        $this->assertInstanceOf(AuthorInput::class, $todo->author);
+        $this->assertSame('John', $todo->author->name);
+        $this->assertSame('john@example.com', $todo->author->email);
+    }
+
     public function testCreateMixedInputAndDI(): void
     {
         $query = [
