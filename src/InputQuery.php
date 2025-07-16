@@ -267,7 +267,11 @@ final class InputQuery implements InputQueryInterface
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
             assert(class_exists($className));
 
-            return $this->newInstance($className, $query[$paramName]);
+            /** @var Query $nestedQuery */
+            $nestedQuery = $query[$paramName];
+
+            /** @var class-string<T> $className */
+            return $this->newInstance($className, $nestedQuery);
         }
 
         // Regular object type with #[Input] - create nested
