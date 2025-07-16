@@ -265,7 +265,8 @@ final class InputQuery implements InputQueryInterface
 
         // Check if the parameter name exists as a direct nested array in query
         if (array_key_exists($paramName, $query) && is_array($query[$paramName])) {
-            assert(class_exists($className));
+            // This should never fail as $className comes from ReflectionParameter type info
+            assert(class_exists($className), "Internal logic error: Class '$className' from reflection should exist");
 
             /** @var Query $nestedQuery */
             $nestedQuery = $query[$paramName];
