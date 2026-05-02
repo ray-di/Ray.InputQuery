@@ -126,8 +126,8 @@ $result = $controller->updateProfile($data);
 public function updateProfile(
     #[Input] string $name,
     #[Input] string $email,
-    #[Input] FileUpload|ErrorFileUpload $avatar,
-    #[Input] FileUpload|ErrorFileUpload|null $banner = null,
+    #[InputFile] FileUpload|ErrorFileUpload $avatar,
+    #[InputFile] FileUpload|ErrorFileUpload|null $banner = null,
 ): void {
     // File objects are ready to use
     if ($avatar instanceof FileUpload) {
