@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-02
+
+### Added
+- Native array validation for `#[Input] array` and `#[Input] array|null` parameters before invoking constructors or methods
+- `InvalidInputTypeException` with structured context for input parameter type errors
+
+### Fixed
+- `#[Input(item: ...)] array` now rejects scalar containers and invalid items instead of silently normalizing them or leaking `TypeError`
+- PHPMD command compatibility with PHPMD 3
+
 ## [0.2.0] - 2025-07-07
 
 ### Added
@@ -42,4 +52,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - symfony/polyfill-php83 ^1.28
 - koriym/file-upload ^0.2.0 (optional, for file upload support)
 
+[1.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.1.0
 [0.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.1.0
