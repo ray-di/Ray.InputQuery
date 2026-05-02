@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Support direct nested array input for object parameters, such as `author => ['name' => 'John']`
 
+## [0.3.0] - 2025-07-16
+
+### Improved
+- Enhanced nested query handling for bracketed object creation
+
 ## [0.2.0] - 2025-07-07
 
 ### Added
@@ -58,4 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [1.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.0.0
+[0.3.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.3.0
+[0.2.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.2.0
 [0.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.1.0
