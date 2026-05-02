@@ -16,6 +16,7 @@ use Ray\Di\InjectorInterface;
 use Ray\InputQuery\Attribute\Input;
 use Ray\InputQuery\Attribute\InputFile;
 use Ray\InputQuery\Exception\InvalidFileUploadAttributeException;
+use Ray\InputQuery\Exception\InvalidInputTypeException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -27,7 +28,6 @@ use function array_key_exists;
 use function assert;
 use function class_exists;
 use function count;
-use function gettype;
 use function is_array;
 use function is_bool;
 use function is_float;
@@ -194,7 +194,7 @@ final class InputQuery implements InputQueryInterface
 
         // Handle union types (e.g., FileUpload|ErrorFileUpload)
         if ($type instanceof ReflectionUnionType) {
-            return $this->resolveUnionType($param, $query, $type);
+            return $this->resolveUnionType($param, $query, $inputAttributes, $type);
         }
 
         if (! $type instanceof ReflectionNamedType) {
@@ -214,31 +214,66 @@ final class InputQuery implements InputQueryInterface
      */
     private function resolveBuiltinType(ReflectionParameter $param, array $query, array $inputAttributes, ReflectionNamedType $type): mixed
     {
-        $paramName = $param->getName();
-
         if ($type->getName() === 'array') {
-            $inputAttribute = $inputAttributes[0]->newInstance();
-            if ($inputAttribute->item !== null) {
-                assert(class_exists($inputAttribute->item));
-                $itemClass = $inputAttribute->item;
-
-                // Check if array items are FileUpload types
-                if (FileUploadTypeChecker::isFileUploadType($itemClass)) {
-                    throw new InvalidFileUploadAttributeException(
-                        sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
-                    );
-                }
-
-                /** @var class-string<T> $itemClass */
-                return $this->createArrayOfInputs($paramName, $query, $itemClass);
-            }
+            return $this->getArrayParameterValue($param, $query, $inputAttributes);
         }
 
         // Scalar type with #[Input]
+        $paramName = $param->getName();
         /** @psalm-suppress MixedAssignment $value */
         $value = $query[$paramName] ?? $this->getDefaultValue($param);
 
         return $this->convertScalar($value, $type);
+    }
+
+    /**
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
+     */
+    private function getArrayParameterValue(ReflectionParameter $param, array $query, array $inputAttributes): mixed
+    {
+        $paramName = $param->getName();
+        $itemClass = $this->getArrayInputItemClass($paramName, $inputAttributes);
+        if ($itemClass !== null) {
+            return $this->createArrayOfInputs($paramName, $query, $itemClass);
+        }
+
+        if (! array_key_exists($paramName, $query)) {
+            return $this->getDefaultValue($param);
+        }
+
+        /** @var mixed $arrayData */
+        $arrayData = $query[$paramName];
+        if (! is_array($arrayData)) {
+            throw InvalidInputTypeException::forParameter($paramName, $arrayData);
+        }
+
+        return $arrayData;
+    }
+
+    /**
+     * @param InputAttributes $inputAttributes
+     *
+     * @return class-string<T>|null
+     */
+    private function getArrayInputItemClass(string $paramName, array $inputAttributes): string|null
+    {
+        $inputAttribute = $inputAttributes[0]->newInstance();
+        if ($inputAttribute->item === null) {
+            return null;
+        }
+
+        assert(class_exists($inputAttribute->item));
+        /** @var class-string<T> $itemClass */
+        $itemClass = $inputAttribute->item;
+
+        if (FileUploadTypeChecker::isFileUploadType($itemClass)) {
+            throw new InvalidFileUploadAttributeException(
+                sprintf('FileUpload array parameter "%s" must use #[InputFile] attribute, not #[Input]', $paramName),
+            );
+        }
+
+        return $itemClass;
     }
 
     /**
@@ -473,20 +508,14 @@ final class InputQuery implements InputQueryInterface
         $arrayData = $query[$paramName];
 
         if (! is_array($arrayData)) {
-            return [];
+            throw InvalidInputTypeException::forParameter($paramName, $arrayData);
         }
 
         $result = [];
         /** @var mixed $itemData */
         foreach ($arrayData as $key => $itemData) {
             if (! is_array($itemData)) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        'Expected array for item at key "%s", got %s.',
-                        $key,
-                        gettype($itemData),
-                    ),
-                );
+                throw InvalidInputTypeException::forItem($paramName, $key, $itemData);
             }
 
             // Query parameters from HTTP requests have string keys
@@ -498,9 +527,16 @@ final class InputQuery implements InputQueryInterface
         return $result;
     }
 
-    /** @param Query $query */
-    private function resolveUnionType(ReflectionParameter $param, array $query, ReflectionUnionType $type): mixed
-    {
+    /**
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
+     */
+    private function resolveUnionType(
+        ReflectionParameter $param,
+        array $query,
+        array $inputAttributes,
+        ReflectionUnionType $type,
+    ): mixed {
         // Check if this is a file upload union type
         if (FileUploadTypeChecker::isValidFileUploadUnion($type)) {
             // This is a valid FileUpload union, handle as file upload
@@ -510,9 +546,71 @@ final class InputQuery implements InputQueryInterface
             return $this->fileUploadFactory->create($param, $query, $inputFileAttribute);
         }
 
+        if ($this->isNullableArrayUnion($type)) {
+            return $this->getNullableArrayParameterValue($param, $query, $inputAttributes);
+        }
+
         // Not a FileUpload union type, handle as regular parameter
         $paramName = $param->getName();
 
         return $query[$paramName] ?? $this->getDefaultValue($param);
+    }
+
+    private function isNullableArrayUnion(ReflectionUnionType $type): bool
+    {
+        $hasArray = false;
+        $hasNull = false;
+
+        foreach ($type->getTypes() as $namedType) {
+            if (! $namedType instanceof ReflectionNamedType) {
+                return false;
+            }
+
+            if ($namedType->getName() === 'array') {
+                $hasArray = true;
+                continue;
+            }
+
+            if ($namedType->getName() === 'null') {
+                $hasNull = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        return $hasArray && $hasNull;
+    }
+
+    /**
+     * @param Query           $query
+     * @param InputAttributes $inputAttributes
+     */
+    private function getNullableArrayParameterValue(
+        ReflectionParameter $param,
+        array $query,
+        array $inputAttributes,
+    ): mixed {
+        $paramName = $param->getName();
+        if (! array_key_exists($paramName, $query)) {
+            return $this->getDefaultValue($param);
+        }
+
+        /** @var mixed $arrayData */
+        $arrayData = $query[$paramName];
+        if ($arrayData === null) {
+            return null;
+        }
+
+        $itemClass = $this->getArrayInputItemClass($paramName, $inputAttributes);
+        if ($itemClass !== null) {
+            return $this->createArrayOfInputs($paramName, $query, $itemClass);
+        }
+
+        if (! is_array($arrayData)) {
+            throw InvalidInputTypeException::forParameter($paramName, $arrayData);
+        }
+
+        return $arrayData;
     }
 }
