@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - symfony/polyfill-php83 ^1.28
 - koriym/file-upload ^0.2.0 (optional, for file upload support)
 
-[1.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.1.0
+[1.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/1.1.0
 [1.0.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.0.0
 [0.3.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.3.0
 [0.2.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.2.0
