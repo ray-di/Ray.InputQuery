@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `#[Input(item: ...)] array` now rejects scalar containers and invalid items instead of silently normalizing them or leaking `TypeError`
-- PHPMD command compatibility with PHPMD 3
 
 ## [0.2.0] - 2025-07-07
 
