@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `#[Input(item: ...)] array` now rejects scalar containers and invalid items instead of silently normalizing them or leaking `TypeError`
 
+## [1.0.0] - 2025-07-29
+
+### Added
+- Support direct nested array input for object parameters, such as `author => ['name' => 'John']`
+
 ## [0.2.0] - 2025-07-07
 
 ### Added
@@ -52,4 +57,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - koriym/file-upload ^0.2.0 (optional, for file upload support)
 
 [1.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.1.0
+[1.0.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/v1.0.0
 [0.1.0]: https://github.com/ray-di/Ray.InputQuery/releases/tag/0.1.0
