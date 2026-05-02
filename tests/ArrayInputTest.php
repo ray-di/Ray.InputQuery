@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Ray\InputQuery;
 
 use ArrayObject;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Ray\Di\Injector;
 use Ray\InputQuery\Attribute\Input;
+use Ray\InputQuery\Exception\InvalidInputTypeException;
 use Ray\InputQuery\Fake\CustomArrayObject;
 use Ray\InputQuery\Fake\UserInputWithAttribute;
 use ReflectionMethod;
@@ -119,6 +119,102 @@ final class ArrayInputTest extends TestCase
         $this->assertCount(0, $args[0]);
     }
 
+    public function testPlainArrayInput(): void
+    {
+        $query = ['ids' => [1, 2, 3]];
+
+        $controller = new class {
+            /**
+             * @param list<int> $ids
+             *
+             * @return list<int>
+             */
+            public function listIds(
+                #[Input]
+                array $ids,
+            ): array {
+                return $ids;
+            }
+        };
+
+        $method = new ReflectionMethod($controller, 'listIds');
+        $args = $this->inputQuery->getArguments($method, $query);
+
+        $this->assertSame([1, 2, 3], $args[0]);
+    }
+
+    public function testPlainArrayInputRejectsScalarValue(): void
+    {
+        $query = ['ids' => '1,2,3'];
+
+        $controller = new class {
+            /**
+             * @param list<int> $ids
+             *
+             * @return list<int>
+             */
+            public function listIds(
+                #[Input]
+                array $ids,
+            ): array {
+                return $ids;
+            }
+        };
+
+        $method = new ReflectionMethod($controller, 'listIds');
+
+        $this->assertInvalidInputTypeContext(
+            fn () => $this->inputQuery->getArguments($method, $query),
+            'ids',
+            'string',
+        );
+    }
+
+    public function testNullableArrayInputRejectsScalarValue(): void
+    {
+        $query = ['ids' => '1,2,3'];
+
+        $controller = new class {
+            /**
+             * @param list<int>|null $ids
+             *
+             * @return list<int>|null
+             */
+            public function listIds(
+                #[Input]
+                array|null $ids = null,
+            ): array|null {
+                return $ids;
+            }
+        };
+
+        $method = new ReflectionMethod($controller, 'listIds');
+
+        $this->assertInvalidInputTypeContext(
+            fn () => $this->inputQuery->getArguments($method, $query),
+            'ids',
+            'string',
+        );
+    }
+
+    public function testNativeArrayConstructorInputRejectsScalarBeforeTypeError(): void
+    {
+        $input = new class {
+            /** @param list<int> $tagIds */
+            public function __construct(
+                #[Input]
+                public readonly array $tagIds = [],
+            ) {
+            }
+        };
+
+        $this->assertInvalidInputTypeContext(
+            fn () => $this->inputQuery->newInstance($input::class, ['tagIds' => 1]),
+            'tagIds',
+            'int',
+        );
+    }
+
     public function testMissingArrayParameter(): void
     {
         $query = [];
@@ -168,10 +264,12 @@ final class ArrayInputTest extends TestCase
         };
 
         $method = new ReflectionMethod($controller, 'listUsers');
-        $args = $this->inputQuery->getArguments($method, $query);
 
-        $this->assertIsArray($args[0]);
-        $this->assertCount(0, $args[0]);
+        $this->assertInvalidInputTypeContext(
+            fn () => $this->inputQuery->getArguments($method, $query),
+            'users',
+            'string',
+        );
     }
 
     public function testArrayWithNonArrayElements(): void
@@ -199,10 +297,12 @@ final class ArrayInputTest extends TestCase
 
         $method = new ReflectionMethod($controller, 'listUsers');
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Expected array for item at key "0", got string.');
-
-        $this->inputQuery->getArguments($method, $query);
+        $this->assertInvalidInputTypeContext(
+            fn () => $this->inputQuery->getArguments($method, $query),
+            'users',
+            'string',
+            0,
+        );
     }
 
     public function testCustomArrayObjectOfInputObjects(): void
@@ -270,5 +370,24 @@ final class ArrayInputTest extends TestCase
 
         // Should create a regular ArrayObject with the nested query data
         $this->assertInstanceOf(ArrayObject::class, $args[0]);
+    }
+
+    /** @param callable(): mixed $callback */
+    private function assertInvalidInputTypeContext(
+        callable $callback,
+        string $paramName,
+        string $actualType,
+        int|string|null $itemKey = null,
+    ): void {
+        try {
+            $callback();
+            $this->fail('Expected InvalidInputTypeException.');
+        } catch (InvalidInputTypeException $e) {
+            $this->assertSame('', $e->getMessage());
+            $this->assertSame($paramName, $e->paramName);
+            $this->assertSame('array', $e->expectedType);
+            $this->assertSame($actualType, $e->actualType);
+            $this->assertSame($itemKey, $e->itemKey);
+        }
     }
 }
