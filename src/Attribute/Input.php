@@ -6,6 +6,11 @@ namespace Ray\InputQuery\Attribute;
 
 use Attribute;
 
+/**
+ * Fills the parameter from the input query, building an object when its type is a class
+ *
+ * @see https://bearsunday.github.io/manuals/1.0/en/resource_param.html#rayinputquery-integration
+ */
 #[Attribute(Attribute::TARGET_PARAMETER)]
 final class Input
 {
